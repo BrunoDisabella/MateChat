@@ -1,14 +1,22 @@
 module.exports = { 
   chromePath: "/usr/bin/google-chrome", 
   puppeteerArgs: [
-    "--no-sandbox",
+    "--no-sandbox", 
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
-    "--disable-accelerated-2d-canvas",
     "--disable-gpu",
-    "--window-size=1920x1080",
-    "--disable-notifications",
-    "--headless=new"
+    "--disable-features=AudioServiceOutOfProcess",
+    "--disable-web-security",
+    "--aggressive-cache-discard",
+    "--disable-cache",
+    "--disable-application-cache",
+    "--disable-offline-load-stale-cache",
+    "--disk-cache-size=0",
+    "--headless",
+    "--hide-scrollbars",
+    "--disable-bundled-ppapi-flash",
+    "--mute-audio",
+    "--disable-gl-drawing-for-tests"
   ],
   detected: "vie. 28/02/2025" 
 }; 

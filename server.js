@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const http = require('http');
 const socketIo = require('socket.io');
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const puppeteer = require('puppeteer');
 const qrcode = require('qrcode');
 const axios = require('axios');
 
@@ -167,12 +168,14 @@ const initWhatsAppClient = async () => {
       clientOptions.puppeteer.args = chromeConfig.puppeteerArgs;
     }
     
-    // Agregar las opciones adicionales
+    // Agregar las opciones adicionales para mejorar estabilidad
     clientOptions.webVersionCache = {
       type: 'none'
     };
     clientOptions.restartOnAuthFail = true;
     clientOptions.qrMaxRetries = 5;
+    clientOptions.takeoverOnConflict = false;
+    clientOptions.bypassCSP = true;
     
     whatsappClient = new Client(clientOptions);
 
@@ -206,17 +209,33 @@ const initWhatsAppClient = async () => {
 
     whatsappClient.on('disconnected', (reason) => {
       console.log('WhatsApp client disconnected:', reason);
+      
+      // Limpieza con manejo de recursos
+      try {
+        // Cerrar cualquier sesión de navegador pendiente
+        if (whatsappClient.pupBrowser) {
+          console.log('Cerrando navegador correctamente...');
+          try {
+            whatsappClient.pupBrowser.close().catch((e) => console.error('Error al cerrar navegador:', e));
+          } catch (e) {
+            console.error('Error en el cierre del navegador:', e);
+          }
+        }
+      } catch (e) {
+        console.error('Error en limpieza de recursos:', e);
+      }
+      
       // Limpiar inmediatamente para reinicializar
       whatsappClient = null;
       qrCodeDataUrl = null;
       isInitializing = false;
       io.emit('disconnected', { reason });
       
-      // Intentar reconectar automáticamente después de 3 segundos
+      // Intentar reconectar automáticamente después de 8 segundos
       setTimeout(() => {
         console.log('Intentando reconexión automática...');
         initWhatsAppClient();
-      }, 3000);
+      }, 8000);
     });
 
     whatsappClient.on('message', async (message) => {
