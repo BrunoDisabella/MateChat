@@ -99,16 +99,26 @@ const initWhatsAppClient = async () => {
     */
     // Importar la configuración de Chrome
     let chromePath;
+    let chromeConfig = null;
     
     // Si estamos en Railway/producción, usamos un enfoque diferente
     if (process.env.RAILWAY_STATIC_URL || process.env.NODE_ENV === 'production') {
       // En Railway, Puppeteer se encargará de usar Chrome instalado en el sistema
       console.log('Ejecutando en entorno de producción, usando Chrome del sistema');
       chromePath = undefined;
+      
+      // Intentar cargar la configuración de chrome para los argumentos de puppeteer
+      try {
+        chromeConfig = require('./chrome-config.js');
+        console.log('Configuración de Chrome cargada exitosamente en modo producción');
+      } catch (err) {
+        console.warn('No se pudo cargar la configuración de Chrome en producción');
+        chromeConfig = null;
+      }
     } else {
       // En desarrollo local, usamos la configuración específica
       try {
-        const chromeConfig = require('./chrome-config.js');
+        chromeConfig = require('./chrome-config.js');
         chromePath = chromeConfig.chromePath;
         
         // Verificar si la ruta a Chrome existe
@@ -123,6 +133,7 @@ const initWhatsAppClient = async () => {
       } catch (err) {
         console.warn('⚠️ No se pudo cargar la configuración de Chrome, usando detección automática');
         chromePath = undefined;
+        chromeConfig = null;
       }
     }
     
@@ -147,6 +158,13 @@ const initWhatsAppClient = async () => {
     // Solo agregar executablePath si tenemos una ruta válida
     if (chromePath) {
       clientOptions.puppeteer.executablePath = chromePath;
+    }
+    
+    // Usar puppeteerArgs de chrome-config.js si están disponibles
+    if (chromeConfig && chromeConfig.puppeteerArgs && Array.isArray(chromeConfig.puppeteerArgs)) {
+      console.log('Usando argumentos de puppeteer desde chrome-config.js');
+      console.log(chromeConfig.puppeteerArgs);
+      clientOptions.puppeteer.args = chromeConfig.puppeteerArgs;
     }
     
     // Agregar las opciones adicionales
