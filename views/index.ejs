@@ -211,15 +211,30 @@
         // Hacer que el botón de estado sea clicable para reintentar conexión
         connectionStatus.addEventListener('click', function() {
             if (this.textContent === 'Desconectado') {
-                // Solicitar nuevo código QR
-                socket.emit('requestQR');
-                
-                // Mostrar mensaje de espera
-                qrcodeElement.innerHTML = `
-                    <p style="text-align: center;">
-                        <span class="loading-spinner"></span> Solicitando nuevo código QR...
-                    </p>
-                `;
+                if (confirm('¿Quieres generar un nuevo código QR? La sesión actual se perderá.')) {
+                    // Solicitar nuevo código QR
+                    socket.emit('requestQR');
+                    
+                    // Mostrar mensaje de espera
+                    qrcodeElement.innerHTML = `
+                        <p style="text-align: center;">
+                            <span class="loading-spinner"></span> Solicitando nuevo código QR...
+                        </p>
+                    `;
+                    
+                    // Deshabilitar temporalmente el botón
+                    this.style.opacity = '0.5';
+                    this.style.pointerEvents = 'none';
+                    
+                    // Volver a habilitar después de 10 segundos
+                    setTimeout(() => {
+                        this.style.opacity = '1';
+                        this.style.pointerEvents = 'auto';
+                    }, 10000);
+                }
+            } else if (this.textContent === 'Error' || this.textContent === 'Regenerando QR') {
+                // Recargar la página para volver a intentar todo desde cero
+                window.location.reload();
             }
         });
     </script>

@@ -62,7 +62,11 @@ class WhatsAppService {
         '--window-size=1280,720',
         '--ignore-certificate-errors',
         '--ignore-certificate-errors-spki-list',
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        '--user-data-dir=/tmp/puppeteer_chrome_profile',
+        '--aggressive-cache-discard',
+        '--disable-session-crashed-bubble',
+        '--disable-application-cache'
       ]
     };
     
@@ -70,15 +74,21 @@ class WhatsAppService {
       console.log('Detectado entorno Railway, usando configuración optimizada');
     }
     
+    // Generar un ID de sesión único para evitar conflictos
+    const sessionId = 'session-' + Date.now();
+    console.log(`Creando nueva sesión con ID: ${sessionId}`);
+    
     this.client = new Client({
-      // Usar autenticación local con ruta específica
+      // Usar autenticación local con ruta específica y ID único
       authStrategy: new LocalAuth({
-        dataPath: '.wwebjs_auth' // Sin el ./ inicial
+        dataPath: '.wwebjs_auth',
+        clientId: sessionId
       }),
       puppeteer: puppeteerOptions,
       // Usar una versión específica de WhatsApp Web
       restartOnAuthFail: true,
       takeoverOnConflict: true,
+      qrMaxRetries: 5,
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     });
 

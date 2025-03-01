@@ -69,6 +69,9 @@ COPY . .
 RUN mkdir -p .wwebjs_auth && chmod -R 777 .wwebjs_auth
 RUN mkdir -p .wwebjs_cache && chmod -R 777 .wwebjs_cache
 
+# Prevent Chrome lock files issues
+RUN mkdir -p /tmp/puppeteer_chrome_profile && chmod -R 777 /tmp/puppeteer_chrome_profile
+
 # Expose the port the app runs on
 EXPOSE 3000
 

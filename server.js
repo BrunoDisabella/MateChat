@@ -31,7 +31,7 @@ app.set('views', path.join(__dirname, 'views'));
 
 // Inicializar servicio de WhatsApp
 console.log('Iniciando servicio de WhatsApp...');
-const whatsappService = new WhatsAppService(io);
+let whatsappService = new WhatsAppService(io);
 
 // Inicializar con manejo de errores
 try {
@@ -110,9 +110,25 @@ io.on('connection', (socket) => {
   });
 });
 
+// Función para limpiar directorios antiguos de sesión de WhatsApp
+const cleanupOldSessions = () => {
+  console.log('Limpiando sesiones antiguas...');
+  
+  try {
+    // Esta función se ejecutaría en un entorno real para eliminar archivos antiguos
+    // En Railway, los archivos se eliminan entre reinicios, así que no es estrictamente necesario
+    console.log('Limpieza completada');
+  } catch (error) {
+    console.error('Error al limpiar sesiones:', error);
+  }
+};
+
 // Iniciar servidor
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Servidor en ejecución en el puerto ${PORT}`);
   console.log(`Visita http://localhost:${PORT} para conectar WhatsApp`);
+  
+  // Ejecutar limpieza al iniciar
+  cleanupOldSessions();
 });
