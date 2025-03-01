@@ -55,9 +55,32 @@ app.use('/api', require('./src/routes/api'));
 io.on('connection', (socket) => {
   console.log('Nuevo cliente conectado');
   
-  // Enviar estado actual de WhatsApp
+  // Enviar estado actual de WhatsApp con verificación adicional
   const status = whatsappService.getStatus();
-  socket.emit('whatsappStatus', { status: status.isConnected ? 'connected' : 'disconnected' });
+  if (status.isConnected) {
+    console.log('Emitiendo estado de WhatsApp: conectado');
+    // Intentar obtener información adicional para validar la conexión
+    try {
+      whatsappService.client.getState()
+        .then(state => {
+          console.log('Estado de WhatsApp enviado al cliente:', state);
+          socket.emit('whatsappStatus', { 
+            status: 'connected',
+            state: state
+          });
+        })
+        .catch(err => {
+          console.warn('Error al obtener estado detallado:', err);
+          socket.emit('whatsappStatus', { status: 'connected' });
+        });
+    } catch (error) {
+      console.warn('Error al verificar estado detallado:', error);
+      socket.emit('whatsappStatus', { status: 'connected' });
+    }
+  } else {
+    console.log('Emitiendo estado de WhatsApp: desconectado');
+    socket.emit('whatsappStatus', { status: 'disconnected' });
+  }
   
   // Si el código QR está disponible, enviarlo
   if (whatsappService.qrCode && !status.isConnected) {

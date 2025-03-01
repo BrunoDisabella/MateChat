@@ -1,10 +1,61 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MateChat - Message Dashboard</title>
+    <title>MateChat - Panel de Mensajes</title>
     <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .connected {
+            background-color: #25D366;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-weight: bold;
+        }
+        .disconnected {
+            background-color: #E60023;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-weight: bold;
+        }
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 15px;
+        }
+        .user-info {
+            background-color: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+        .chat-header {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .chat-header h3 {
+            margin: 0;
+        }
+        #reload-button {
+            background-color: #25D366;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #reload-button:hover {
+            background-color: #128C7E;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -12,18 +63,22 @@
             <h1>MateChat</h1>
             <div class="status-bar">
                 <div class="whatsapp-status">
-                    WhatsApp: <span id="connection-status">Checking...</span>
+                    WhatsApp: <span id="connection-status" class="checking">Verificando...</span>
                 </div>
-                <a href="/" class="button small">Home</a>
+                <div id="user-info"></div>
+                <a href="/" class="button small">Inicio</a>
             </div>
         </header>
         
         <main class="chat-container">
             <div class="chat-sidebar">
+                <div class="chat-header">
+                    <h3>Contactos Recientes</h3>
+                    <button id="reload-button" title="Recargar contactos">↻</button>
+                </div>
                 <div class="chat-contacts">
-                    <h3>Recent Contacts</h3>
                     <ul id="contacts-list">
-                        <li class="loading">Loading contacts...</li>
+                        <li class="loading">Cargando contactos...</li>
                     </ul>
                 </div>
             </div>
@@ -31,25 +86,97 @@
             <div class="chat-main">
                 <div class="chat-messages">
                     <div id="messages-container">
-                        <p class="select-contact">Select a contact to view messages</p>
+                        <p class="select-contact">Selecciona un contacto para ver los mensajes</p>
                     </div>
                 </div>
                 
                 <div class="chat-input" id="chat-input-container" style="display: none;">
                     <form id="message-form">
-                        <input type="text" id="message-input" placeholder="Type a message..." />
-                        <button type="submit" id="send-button">Send</button>
+                        <input type="text" id="message-input" placeholder="Escribe un mensaje..." />
+                        <button type="submit" id="send-button">Enviar</button>
                     </form>
                 </div>
             </div>
         </main>
         
         <footer>
-            <p>&copy; 2025 MateChat - WhatsApp Integration</p>
+            <p>&copy; 2025 MateChat - Integración de WhatsApp</p>
         </footer>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Verificar conexión antes de cargar la página principal
+        const socket = io();
+        const connectionStatus = document.getElementById('connection-status');
+        const userInfoContainer = document.getElementById('user-info');
+        
+        // Función para redirigir si no hay conexión
+        function checkConnection() {
+            fetch('/api/whatsapp-status')
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Estado de WhatsApp:", data);
+                    if (!data.isConnected) {
+                        console.log("WhatsApp no conectado, redirigiendo a la página principal");
+                        window.location.href = '/';
+                    } else {
+                        connectionStatus.textContent = 'Conectado';
+                        connectionStatus.className = 'connected';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al verificar estado:', error);
+                    connectionStatus.textContent = 'Error';
+                    connectionStatus.className = 'disconnected';
+                });
+        }
+        
+        // Verificar conexión al cargar
+        checkConnection();
+        
+        // Escuchar eventos de estado
+        socket.on('whatsappStatus', (data) => {
+            console.log("Cambio de estado de WhatsApp:", data);
+            
+            if (data.status === 'connected') {
+                connectionStatus.textContent = 'Conectado';
+                connectionStatus.className = 'connected';
+                
+                // Mostrar información del usuario si está disponible
+                if (data.info) {
+                    userInfoContainer.innerHTML = `
+                        <div class="user-info">
+                            <strong>${data.info.name}</strong> | 
+                            Teléfono: ${data.info.phone}
+                        </div>
+                    `;
+                }
+            } else if (data.status === 'disconnected') {
+                // Redirigir a la página de inicio si se desconecta
+                alert('La conexión de WhatsApp se ha perdido. Redirigiendo a la página de inicio.');
+                window.location.href = '/';
+            }
+        });
+        
+        // Recargar contactos
+        document.getElementById('reload-button').addEventListener('click', function() {
+            const contactsList = document.getElementById('contacts-list');
+            contactsList.innerHTML = '<li class="loading">Actualizando contactos...</li>';
+            
+            // Cargar contactos nuevamente
+            fetch('/api/messages')
+                .then(response => response.json())
+                .then(messages => {
+                    // El resto del código se maneja en chat.js
+                    console.log('Contactos recargados');
+                })
+                .catch(error => {
+                    console.error('Error al recargar contactos:', error);
+                    contactsList.innerHTML = '<li class="error">Error al cargar contactos</li>';
+                });
+        });
+    </script>
     <script src="/js/chat.js"></script>
 </body>
 </html>

@@ -132,8 +132,29 @@
             
             if (data.status === 'connected') {
                 updateWhatsAppStatus(true);
+                
+                // Guardar estado en localStorage para persistencia
+                localStorage.setItem('whatsappConnected', 'true');
+                if (data.info) {
+                    localStorage.setItem('whatsappUserInfo', JSON.stringify(data.info));
+                }
+            } else if (data.status === 'authenticated') {
+                // Cuando el usuario escanea el QR pero aún no está completamente conectado
+                connectionStatus.textContent = 'Autenticado';
+                connectionStatus.className = 'status-button connected';
+                qrcodeContainer.style.display = 'none';
+                connectionSuccess.style.display = 'block';
+                
+                document.querySelector('#connection-success h3').textContent = '¡Autenticación Exitosa!';
+                document.querySelector('#connection-success p').textContent = 'Preparando tu sesión de WhatsApp...';
+                
+                // No redirigir todavía, esperar al evento 'connected'
             } else if (data.status === 'disconnected') {
                 updateWhatsAppStatus(false);
+                
+                // Limpiar estado almacenado
+                localStorage.removeItem('whatsappConnected');
+                localStorage.removeItem('whatsappUserInfo');
             } else if (data.status === 'regenerating') {
                 // Mostrar estado de regenerando QR
                 connectionStatus.textContent = 'Regenerando QR';

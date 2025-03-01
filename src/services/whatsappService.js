@@ -108,13 +108,19 @@ class WhatsAppService {
       });
     });
 
+    // Evento authenticated - se dispara cuando el usuario escanea el QR exitosamente
+    this.client.on('authenticated', () => {
+      console.log('¡Usuario autenticado en WhatsApp!');
+      this.io.emit('whatsappStatus', { status: 'authenticated' });
+    });
+    
+    // Evento ready - se dispara cuando el cliente está completamente listo
     this.client.on('ready', () => {
+      console.log('¡Cliente de WhatsApp listo!');
       this.isConnected = true;
       this.qrCode = null; // Eliminar el código QR cuando ya está conectado
-      this.io.emit('whatsappStatus', { status: 'connected' });
-      console.log('¡Cliente de WhatsApp listo!');
       
-      // Guardar información del número de teléfono conectado
+      // Emitir evento con más detalles para confirmar la conexión
       this.client.getState()
         .then(state => {
           console.log('Estado de WhatsApp:', state);
@@ -122,9 +128,21 @@ class WhatsAppService {
         })
         .then(info => {
           console.log('Información del teléfono conectado:', info);
+          
+          // Enviar información detallada al cliente
+          this.io.emit('whatsappStatus', { 
+            status: 'connected',
+            info: {
+              platform: info?.platform || 'unknown',
+              phone: info?.wid?.user || 'unknown',
+              name: info?.pushname || 'unknown'
+            }
+          });
         })
         .catch(err => {
           console.error('Error al obtener información del cliente de WhatsApp:', err);
+          // Enviar evento de conexión incluso si falla obtener la info
+          this.io.emit('whatsappStatus', { status: 'connected' });
         });
     });
 
