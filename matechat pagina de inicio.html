@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MateChat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background-color: white;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+        }
+        
+        .logo img {
+            width: 30px;
+            height: 30px;
+            margin-right: 10px;
+        }
+        
+        .logo-text {
+            font-size: 18px;
+            color: #128C7E;
+            font-weight: bold;
+        }
+        
+        .disconnect-btn {
+            background-color: #E74C3C;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .main-content {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .login-card {
+            background-color: white;
+            width: 100%;
+            max-width: 780px;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .card-title {
+            font-size: 24px;
+            color: #444;
+            margin-bottom: 15px;
+        }
+        
+        .card-subtitle {
+            color: #666;
+            margin-bottom: 25px;
+        }
+        
+        .steps {
+            text-align: left;
+            margin-left: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .steps li {
+            margin-bottom: 10px;
+            color: #555;
+        }
+        
+        .qr-container {
+            margin: 30px auto;
+            width: 200px;
+            height: 200px;
+            border: 1px solid #ddd;
+            padding: 5px;
+        }
+        
+        .qr-code {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .checkbox-container input {
+            margin-right: 10px;
+        }
+        
+        .alt-login {
+            color: #128C7E;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 15px;
+            color: #888;
+            font-size: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .footer img {
+            width: 16px;
+            height: 16px;
+            margin: 0 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <div style="width: 30px; height: 30px; background-color: #128C7E; border-radius: 50%; display: flex; justify-content: center; align-items: center;">
+                <div style="width: 15px; height: 15px; background-color: white; border-radius: 50%;"></div>
+            </div>
+            <span class="logo-text">MateChat</span>
+        </div>
+        <button class="disconnect-btn">Desconectar</button>
+    </div>
+    
+    <div class="main-content">
+        <div class="login-card">
+            <h2 class="card-title">Inicia sesión en MateChat</h2>
+            <p class="card-subtitle">Envía mensajes privados a tus amigos y familiares a través de WhatsApp en tu navegador.</p>
+            
+            <ol class="steps">
+                <li>Abre WhatsApp en tu teléfono.</li>
+                <li>Toca Menú ⋮ en Android o Ajustes ⚙️ ⚙️ en iPhone.</li>
+                <li>Toca Dispositivos vinculados y, luego, Vincular un dispositivo.</li>
+                <li>Apunta tu teléfono hacia esta pantalla para escanear el código QR.</li>
+            </ol>
+            
+            <div class="qr-container">
+                <img src="/api/placeholder/200/200" alt="Código QR" class="qr-code">
+            </div>
+            
+            <div class="checkbox-container">
+                <input type="checkbox" id="keep-session" checked>
+                <label for="keep-session">Mantener la sesión iniciada en este navegador</label>
+                <span style="margin-left: 5px;">ⓘ</span>
+            </div>
+            
+            <a href="#" class="alt-login">Iniciar sesión con número de teléfono</a>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <span>🔒 🔒</span>
+        <span>Tus mensajes personales están cifrados de extremo a extremo</span>
+    </div>
+</body>
+</html>
