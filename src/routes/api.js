@@ -13,6 +13,7 @@ router.put('/messages/:id/status', messageController.updateMessageStatus);
 router.post('/whatsapp-webhook', whatsappController.handleWebhook);
 router.post('/send-message', whatsappController.sendMessage);
 router.get('/whatsapp-status', whatsappController.getStatus);
+router.post('/start-pairing', whatsappController.startPairing);
 
 // Endpoint para acuse de recibo de conexión (para depuración)
 router.post('/acknowledge-connection', (req, res) => {

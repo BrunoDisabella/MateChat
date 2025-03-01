@@ -204,9 +204,24 @@
                     </ol>
                 </div>
                 
-                <!-- Botón para forzar verificación estado -->
-                <div style="text-align: center; margin-top: 20px;">
+                <!-- Sección de código de emparejamiento (oculta por defecto) -->
+                <div id="pairing-section" style="display: none; margin-top: 20px; text-align: center;">
+                    <h3>Emparejamiento por Código Numérico</h3>
+                    <p>Ingresa este código en tu WhatsApp Business:</p>
+                    <div id="pairing-code" style="font-size: 28px; letter-spacing: 5px; margin: 20px 0; font-weight: bold; color: #128C7E;"></div>
+                    <ol style="text-align: left; max-width: 400px; margin: 0 auto; background-color: #f8f9fa; padding: 15px 15px 15px 35px; border-radius: 5px;">
+                        <li>Abre WhatsApp Business en tu teléfono</li>
+                        <li>Toca Ajustes > Dispositivos vinculados</li>
+                        <li>Toca "Vincular un dispositivo"</li>
+                        <li>Selecciona "Vincular con código de teléfono"</li>
+                        <li>Ingresa el código de 8 dígitos mostrado arriba</li>
+                    </ol>
+                </div>
+                
+                <!-- Botones para opciones de conexión -->
+                <div style="text-align: center; margin-top: 20px; display: flex; justify-content: center; gap: 10px;">
                     <button id="check-status" class="debug-button">Verificar Estado de Conexión</button>
+                    <button id="use-pairing-code" class="debug-button" style="background-color: #128C7E;">Usar Código Numérico</button>
                 </div>
             </div>
             
@@ -369,6 +384,25 @@
             });
         }
         
+        // Escuchar evento de código de emparejamiento
+        socket.on('pairingCode', (data) => {
+            console.log('Código de emparejamiento recibido:', data);
+            if (data && data.pairingCode) {
+                // Mostrar la sección de código de emparejamiento
+                document.getElementById('pairing-section').style.display = 'block';
+                
+                // Formatear y mostrar el código
+                let formattedCode = data.pairingCode;
+                if (formattedCode.length === 6) {
+                    formattedCode = formattedCode.substring(0, 3) + '-' + formattedCode.substring(3);
+                }
+                document.getElementById('pairing-code').textContent = formattedCode;
+                
+                // Ocultar el QR ya que no es necesario si estamos usando código de emparejamiento
+                qrcodeElement.style.display = 'none';
+            }
+        });
+
         // Configurar botón para verificar estado manualmente
         if (checkStatusButton) {
             checkStatusButton.addEventListener('click', () => {
@@ -409,6 +443,46 @@
                         checkStatusButton.disabled = false;
                         alert('Error al verificar el estado. Por favor, intenta de nuevo.');
                     });
+            });
+        }
+        
+        // Configurar botón para usar código de emparejamiento
+        const pairingButton = document.getElementById('use-pairing-code');
+        if (pairingButton) {
+            pairingButton.addEventListener('click', () => {
+                console.log('Iniciando modo de emparejamiento por código numérico...');
+                pairingButton.innerHTML = '<span class="loading-spinner"></span> Iniciando...';
+                pairingButton.disabled = true;
+                
+                // Solicitar inicio del modo de emparejamiento
+                fetch('/api/start-pairing', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Respuesta del servidor:', data);
+                    pairingButton.innerHTML = 'Usar Código Numérico';
+                    pairingButton.disabled = false;
+                    
+                    // Mostrar mensaje mientras esperamos el código
+                    qrcodeElement.innerHTML = `
+                        <div style="text-align: center; padding: 20px;">
+                            <span class="loading-spinner"></span>
+                            <p style="margin-top: 10px;">Generando código de emparejamiento...</p>
+                            <p style="font-size: 0.8em; color: #666; margin-top: 5px;">Esto puede tardar unos segundos</p>
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    console.error('Error al iniciar emparejamiento:', error);
+                    pairingButton.innerHTML = 'Usar Código Numérico';
+                    pairingButton.disabled = false;
+                    alert('Error al iniciar emparejamiento. Por favor, intenta de nuevo.');
+                });
             });
         }
     </script>

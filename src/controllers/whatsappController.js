@@ -72,3 +72,38 @@ exports.getStatus = (req, res) => {
     res.json(status);
   }
 };
+
+// Iniciar el modo de emparejamiento por número de teléfono
+exports.startPairing = (req, res) => {
+  try {
+    if (!whatsappService) {
+      return res.status(500).json({ error: 'WhatsApp service not initialized' });
+    }
+    
+    // Limpiar sesión actual y reiniciar en modo de emparejamiento
+    whatsappService.cleanSession()
+      .then(() => {
+        console.log('Iniciando WhatsApp en modo de emparejamiento por número');
+        // Crear una nueva instancia con modo de emparejamiento activado
+        whatsappService.initialize(true);
+        
+        res.status(200).json({
+          status: 'pairing_started',
+          message: 'Modo de emparejamiento iniciado'
+        });
+      })
+      .catch(error => {
+        console.error('Error al iniciar modo de emparejamiento:', error);
+        res.status(500).json({
+          error: 'Failed to start pairing mode',
+          details: error.message
+        });
+      });
+  } catch (error) {
+    console.error('Error al iniciar modo de emparejamiento:', error);
+    res.status(500).json({
+      error: 'Error general al iniciar modo de emparejamiento',
+      details: error.message
+    });
+  }
+};

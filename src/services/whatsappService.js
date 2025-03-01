@@ -52,12 +52,18 @@ class WhatsAppService {
     }
   }
   
-  async initialize() {
+  async initialize(pairing = false) {
     this.connectionAttempts++;
     console.log(`Intento de conexión ${this.connectionAttempts}/${this.maxConnectionAttempts}`);
     
     // Verificar si hay una sesión existente
     await this.checkExistingSession();
+    
+    // Activar modo de emparejamiento si se solicita
+    this.usePairing = pairing;
+    if (pairing) {
+      console.log('Activando modo de emparejamiento por número de teléfono');
+    }
     
     // Configuración simple y directa de puppeteer
     const puppeteerOptions = {
@@ -81,7 +87,7 @@ class WhatsAppService {
     const sessionId = 'matechat-primary';
     console.log(`Usando sesión persistente: ${sessionId}`);
     
-    this.client = new Client({
+    const clientOptions = {
       authStrategy: new LocalAuth({
         clientId: sessionId,
         dataPath: '/wwebjs_data/.wwebjs_auth' // Ruta de volumen persistente en Railway
@@ -92,13 +98,52 @@ class WhatsAppService {
       restartOnAuthFail: true,
       takeoverOnConflict: true,
       disableSpins: true // Desactivar spinners que pueden causar problemas en algunos entornos
-    });
+    };
+    
+    // Si estamos en modo de emparejamiento, activar la opción correspondiente
+    if (this.usePairing) {
+      console.log('Configurando cliente para emparejamiento por número de teléfono');
+      clientOptions.pairingCode = true;
+      clientOptions.pairingCodeRegex = true;
+    }
+    
+    this.client = new Client(clientOptions);
 
     // Manejar evento QR
     this.client.on('qr', (qr) => {
       console.log('¡CÓDIGO QR GENERADO!');
       this.qrCode = qr;
       
+      // Si estamos en modo de emparejamiento, intentar extraer el código numérico
+      if (this.usePairing) {
+        try {
+          // El código de emparejamiento se muestra en el texto de la consola
+          // Formato típico: Please enter the following code on your WhatsApp: 123-456
+          console.log('Código QR completo:', qr);
+          
+          // Intentar extraer el código numérico
+          let pairingCode = '';
+          
+          // Usar el código QR para obtener los 8 dígitos del código de emparejamiento
+          if (qr && qr.length > 0) {
+            // A veces el código está al final, intentamos extraerlo
+            const codeMatch = qr.match(/(\d{3})-(\d{3})/);
+            if (codeMatch) {
+              pairingCode = codeMatch[1] + codeMatch[2];
+              console.log('Código de emparejamiento detectado:', pairingCode);
+              
+              // Enviar el código de emparejamiento a los clientes
+              this.io.emit('pairingCode', { pairingCode });
+            } else {
+              console.log('No se pudo extraer código de emparejamiento');
+            }
+          }
+        } catch (error) {
+          console.error('Error al procesar código de emparejamiento:', error);
+        }
+      }
+      
+      // Siempre generamos el QR también para compatibilidad
       qrcode.toDataURL(qr, { errorCorrectionLevel: 'H' }, (err, url) => {
         if (err) {
           console.error('Error al generar código QR:', err);
@@ -107,6 +152,12 @@ class WhatsAppService {
         console.log('Enviando QR a todos los clientes conectados');
         this.io.emit('qrCode', url);
       });
+    });
+    
+    // Evento específico de código de emparejamiento
+    this.client.on('code', (code) => {
+      console.log('Código de emparejamiento generado:', code);
+      this.io.emit('pairingCode', { pairingCode: code });
     });
 
     // Evento de autenticación exitosa
