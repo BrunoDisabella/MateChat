@@ -276,19 +276,20 @@
                             body: JSON.stringify({ redirecting: true, timestamp: new Date().toISOString() })
                         }).catch(err => console.warn("Error al enviar notificación de redirección:", err));
                         
-                        // Método 1: window.location.href con parámetro de cache busting
-                        window.location.href = '/chat?t=' + new Date().getTime();
+                        // Método 1: window.location.href con parámetro de fuerza para bypassear la verificación
+                        window.location.href = '/chat?force=true&t=' + new Date().getTime();
                         
-                        // Método 2: window.location.replace (como respaldo)
+                        // Método 2: window.location.replace (como respaldo) con parámetro de fuerza
                         setTimeout(() => {
-                            window.location.replace('/chat?t=' + new Date().getTime());
+                            window.location.replace('/chat?force=true&t=' + new Date().getTime());
                         }, 500);
                         
-                        // Método 3: abrir en nueva pestaña y cerrar esta (último recurso)
+                        // Método 3: abrir en nueva pestaña con parámetro de fuerza
                         setTimeout(() => {
-                            const newTab = window.open('/chat', '_blank');
+                            const newTab = window.open('/chat?force=true', '_blank');
                             if (newTab) {
-                                window.close();
+                                // No cerrar la pestaña actual en este caso
+                                console.log("Nueva pestaña abierta como último recurso");
                             }
                         }, 1000);
                     } catch (error) {

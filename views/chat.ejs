@@ -132,8 +132,36 @@
                 });
         }
         
-        // Verificar conexión al cargar
-        checkConnection();
+        // Verificar si se accedió con el parámetro force=true
+        const urlParams = new URLSearchParams(window.location.search);
+        const forceParam = urlParams.get('force');
+        
+        if (forceParam === 'true') {
+            console.log("Acceso forzado a la página de chat");
+            connectionStatus.textContent = 'Verificando...';
+            // Verificar estado real con el servidor
+            fetch('/api/whatsapp-status')
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Estado obtenido del servidor:", data);
+                    if (data.isConnected) {
+                        connectionStatus.textContent = 'Conectado';
+                        connectionStatus.className = 'connected';
+                    } else {
+                        console.warn("Acceso forzado pero no hay conexión real");
+                        connectionStatus.textContent = 'Sin conexión real';
+                        connectionStatus.className = 'disconnected';
+                    }
+                })
+                .catch(error => {
+                    console.error("Error al verificar estado:", error);
+                    connectionStatus.textContent = 'Error';
+                    connectionStatus.className = 'disconnected';
+                });
+        } else {
+            // Verificación normal de conexión
+            checkConnection();
+        }
         
         // Escuchar eventos de estado
         socket.on('whatsappStatus', (data) => {

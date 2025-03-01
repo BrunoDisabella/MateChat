@@ -146,7 +146,7 @@ class WhatsAppService {
           // Enviar evento adicional para garantizar que todos reciban la notificación
           setTimeout(() => {
             console.log('Enviando evento de conexión de respaldo...');
-            this.io.emit('forceRedirect', { url: '/chat' });
+            this.io.emit('forceRedirect', { url: '/chat?force=true' });
           }, 2000);
         })
         .catch(err => {
@@ -157,7 +157,7 @@ class WhatsAppService {
           
           // Evento de respaldo
           setTimeout(() => {
-            this.io.emit('forceRedirect', { url: '/chat' });
+            this.io.emit('forceRedirect', { url: '/chat?force=true' });
           }, 2000);
         });
     });
@@ -282,8 +282,27 @@ class WhatsAppService {
   }
 
   getStatus() {
+    // Verificar el estado real del cliente si está disponible
+    if (this.client) {
+      try {
+        // Intento adicional de verificar estado para tener mayor precisión
+        const realStatus = {
+          isConnected: this.isConnected,
+          hasQR: !!this.qrCode,
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log('Estado actual de WhatsApp:', realStatus);
+        return realStatus;
+      } catch (error) {
+        console.warn('Error al obtener estado detallado:', error);
+      }
+    }
+    
+    // Estado básico
     return {
-      isConnected: this.isConnected
+      isConnected: this.isConnected,
+      hasQR: !!this.qrCode
     };
   }
 }

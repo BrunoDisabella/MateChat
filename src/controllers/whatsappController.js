@@ -42,7 +42,33 @@ exports.getStatus = (req, res) => {
   if (!whatsappService) {
     return res.status(500).json({ error: 'WhatsApp service not initialized' });
   }
-  
-  const status = whatsappService.getStatus();
-  res.json(status);
+
+  // Verificar el estado real del cliente
+  try {
+    if (whatsappService.client && whatsappService.isConnected) {
+      // Intentar obtener información adicional para verificar que la conexión es real
+      whatsappService.client.getState()
+        .then(state => {
+          console.log('Estado real de WhatsApp API:', state);
+          const status = whatsappService.getStatus();
+          status.state = state;
+          res.json(status);
+        })
+        .catch(err => {
+          console.warn('Error al obtener estado real de la API:', err);
+          // Continuar con el estado básico
+          const status = whatsappService.getStatus();
+          res.json(status);
+        });
+    } else {
+      // Devolver el estado básico
+      const status = whatsappService.getStatus();
+      res.json(status);
+    }
+  } catch (error) {
+    console.error('Error al verificar estado:', error);
+    // En caso de error, devolver estado básico
+    const status = whatsappService.getStatus();
+    res.json(status);
+  }
 };
