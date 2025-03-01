@@ -146,13 +146,26 @@ const cleanupOldSessions = () => {
   }
 };
 
+// Registrar eventos no manejados para evitar caídas
+process.on('uncaughtException', (error) => {
+  console.error('ERROR NO MANEJADO:', error);
+  // No cerramos el proceso para que la aplicación siga funcionando
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('PROMESA RECHAZADA NO MANEJADA:', reason);
+  // No cerramos el proceso para que la aplicación siga funcionando
+});
+
 // Iniciar servidor
 const PORT = process.env.PORT || 3000;
 const APP_URL = process.env.RAILWAY_STATIC_URL || `http://localhost:${PORT}`;
 
 server.listen(PORT, () => {
+  console.log(`====== APLICACIÓN INICIADA ======`);
   console.log(`Servidor en ejecución en el puerto ${PORT}`);
   console.log(`Visita ${APP_URL} para conectar WhatsApp`);
+  console.log(`=================================`);
   
   // Ejecutar limpieza al iniciar
   cleanupOldSessions();

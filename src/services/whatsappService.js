@@ -81,22 +81,57 @@ class WhatsAppService {
 
     // Evento de autenticación exitosa
     this.client.on('authenticated', () => {
-      console.log('¡AUTENTICACIÓN EXITOSA!');
+      console.log('¡AUTENTICACIÓN EXITOSA! WhatsApp ha validado el escaneo del QR');
+      
+      // Notificar a todos los clientes
       this.io.emit('whatsappStatus', { 
         status: 'authenticated',
         message: 'WhatsApp autenticado correctamente'
       });
+      
+      // Intentar obtener estado para diagnosticar
+      try {
+        if (this.client && typeof this.client.getState === 'function') {
+          this.client.getState()
+            .then(state => console.log('Estado después de autenticación:', state))
+            .catch(err => console.log('Error al obtener estado después de autenticación:', err));
+        }
+      } catch (error) {
+        console.log('Error al verificar estado:', error);
+      }
+      
+      console.log('Esperando evento ready...');
+    });
+    
+    // Evento de loading screen (estado intermedio)
+    this.client.on('loading_screen', (percent, message) => {
+      console.log(`Cargando WhatsApp: ${percent}% - ${message}`);
     });
 
     // Evento de cliente listo
     this.client.on('ready', () => {
-      console.log('¡CLIENTE WHATSAPP LISTO!');
+      console.log('¡CLIENTE WHATSAPP LISTO! Conexión completada con éxito');
       this.isConnected = true;
       this.qrCode = null;
       
       // Registrar manejador de mensajes ahora que estamos conectados
       this.registerMessageListener();
       
+      // Intentar obtener información adicional
+      try {
+        this.client.getState()
+          .then(state => console.log('Estado final:', state))
+          .catch(err => console.log('Error al obtener estado final:', err));
+          
+        this.client.getInfo()
+          .then(info => console.log('Información del dispositivo:', JSON.stringify(info)))
+          .catch(err => console.log('Error al obtener info del dispositivo:', err));
+      } catch (error) {
+        console.log('Error general en verificaciones adicionales:', error);
+      }
+      
+      // Notificar a todos los clientes
+      console.log('Notificando estado CONECTADO a todos los clientes');
       this.io.emit('whatsappStatus', { 
         status: 'connected',
         message: 'WhatsApp conectado correctamente'
@@ -129,21 +164,79 @@ class WhatsAppService {
       console.error('Error de WhatsApp:', error);
     });
 
+    // Evento de fallo de autenticación
+    this.client.on('auth_failure', (error) => {
+      console.error('ERROR DE AUTENTICACIÓN:', error);
+      this.io.emit('whatsappStatus', { 
+        status: 'error',
+        message: 'Error de autenticación de WhatsApp'
+      });
+      
+      // Intentar reiniciar si hay un fallo de autenticación
+      if (this.connectionAttempts < this.maxConnectionAttempts) {
+        console.log('Reintentando después de fallo de autenticación...');
+        setTimeout(() => this.initialize(), 5000);
+      }
+    });
+    
+    // Registrar todos los demás eventos relevantes para diagnóstico
+    this.client.on('change_state', state => {
+      console.log('Estado de conexión cambiado a:', state);
+    });
+    
+    this.client.on('change_battery', batteryInfo => {
+      console.log('Información de batería actualizada:', batteryInfo);
+    });
+    
     // Inicializar cliente
     console.log('Inicializando cliente WhatsApp...');
-    this.client.initialize()
-      .then(() => {
-        console.log('Cliente WhatsApp inicializado correctamente');
-      })
-      .catch(err => {
-        console.error('Error al inicializar cliente:', err);
-        
-        // Reintentar conexión si no alcanzamos el límite de intentos
-        if (this.connectionAttempts < this.maxConnectionAttempts) {
-          console.log('Intentando reinicializar...');
-          setTimeout(() => this.initialize(), 5000);
-        }
-      });
+    
+    try {
+      this.client.initialize()
+        .then(() => {
+          console.log('Cliente WhatsApp inicializado correctamente');
+          
+          // Si no recibimos el evento ready en 60 segundos, intentemos verificar el estado manualmente
+          setTimeout(() => {
+            if (!this.isConnected) {
+              console.log('No se recibió evento ready, verificando estado manualmente...');
+              if (this.client && typeof this.client.getState === 'function') {
+                this.client.getState()
+                  .then(state => {
+                    console.log('Estado verificado manualmente:', state);
+                    if (state === 'CONNECTED') {
+                      console.log('Estado conectado detectado manualmente!');
+                      
+                      if (!this.isConnected) {
+                        this.isConnected = true;
+                        this.io.emit('whatsappStatus', { status: 'connected' });
+                        this.registerMessageListener();
+                      }
+                    }
+                  })
+                  .catch(err => console.log('Error al verificar estado manualmente:', err));
+              }
+            }
+          }, 60000);
+        })
+        .catch(err => {
+          console.error('Error al inicializar cliente:', err);
+          
+          // Reintentar conexión si no alcanzamos el límite de intentos
+          if (this.connectionAttempts < this.maxConnectionAttempts) {
+            console.log('Intentando reinicializar...');
+            setTimeout(() => this.initialize(), 5000);
+          }
+        });
+    } catch (error) {
+      console.error('Error general durante la inicialización:', error);
+      
+      // Reintentar en caso de error crítico
+      if (this.connectionAttempts < this.maxConnectionAttempts) {
+        console.log('Reintentando después de error crítico...');
+        setTimeout(() => this.initialize(), 10000);
+      }
+    }
   }
 
   // Manejar mensaje recibido
