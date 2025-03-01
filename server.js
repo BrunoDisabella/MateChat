@@ -30,8 +30,16 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 // Inicializar servicio de WhatsApp
+console.log('Iniciando servicio de WhatsApp...');
 const whatsappService = new WhatsAppService(io);
-whatsappService.initialize();
+
+// Inicializar con manejo de errores
+try {
+  whatsappService.initialize();
+  console.log('Servicio de WhatsApp inicializado correctamente');
+} catch (error) {
+  console.error('Error al inicializar servicio de WhatsApp:', error);
+}
 
 // Establecer servicio de WhatsApp en el controlador
 whatsappController.setWhatsAppService(whatsappService);

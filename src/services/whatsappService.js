@@ -14,25 +14,46 @@ class WhatsAppService {
   }
 
   initialize() {
+    // Configuración específica para entornos cloud
+    const isProduction = process.env.NODE_ENV === 'production';
+    console.log(`Inicializando WhatsApp en modo: ${isProduction ? 'producción' : 'desarrollo'}`);
+    
+    const puppeteerOptions = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
+        '--disable-extensions',
+        '--disable-features=site-per-process',
+        '--window-size=1280,720',
+        '--ignore-certificate-errors',
+        '--ignore-certificate-errors-spki-list',
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      ],
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
+    };
+    
+    // Si estamos en Railway, usamos configuración especial
+    if (process.env.RAILWAY_STATIC_URL) {
+      console.log('Detectado entorno Railway, usando configuración específica');
+      puppeteerOptions.args.push('--single-process');
+    }
+    
     this.client = new Client({
       authStrategy: new LocalAuth({
         dataPath: './.wwebjs_auth'
       }),
-      puppeteer: {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote', 
-          '--single-process',
-          '--disable-gpu',
-          '--disable-extensions',
-          '--disable-features=site-per-process'
-        ]
-      }
+      puppeteer: puppeteerOptions,
+      webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/4.2405.7.html'
+      },
+      webVersion: '2.2405.7'
     });
 
     this.client.on('qr', (qr) => {
@@ -119,9 +140,43 @@ class WhatsAppService {
     });
 
     console.log('Inicializando cliente WhatsApp...');
-    this.client.initialize().catch(err => {
-      console.error('Error al inicializar WhatsApp client:', err);
+    
+    // Agregar un manejador para errores de autenticación
+    this.client.on('auth_failure', (error) => {
+      console.error('Error de autenticación de WhatsApp:', error);
+      this.qrCode = null;
+      this.isConnected = false;
+      
+      // Intentar reinicializar después de un error de autenticación
+      setTimeout(() => {
+        console.log('Intentando reinicializar cliente WhatsApp después de error de autenticación...');
+        this.client.initialize().catch(err => {
+          console.error('Error al reinicializar WhatsApp client:', err);
+        });
+      }, 10000);
     });
+    
+    // Agregar un manejador para otros errores del cliente
+    this.client.on('error', (error) => {
+      console.error('Error de WhatsApp client:', error);
+    });
+    
+    // Inicializar con mejor manejo de errores
+    this.client.initialize()
+      .then(() => {
+        console.log('Cliente WhatsApp inicializado correctamente');
+      })
+      .catch(err => {
+        console.error('Error al inicializar WhatsApp client:', err);
+        
+        // Intentar reinicializar después de un tiempo
+        setTimeout(() => {
+          console.log('Intentando reinicializar cliente WhatsApp...');
+          this.client.initialize().catch(e => {
+            console.error('Error al reinicializar WhatsApp client:', e);
+          });
+        }, 15000);
+      });
   }
 
   async sendMessage(to, content) {

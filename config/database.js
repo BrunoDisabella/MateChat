@@ -5,7 +5,7 @@ require('dotenv').config();
 const connectDB = async () => {
   try {
     // Si no hay URI de MongoDB, usar una base de datos en memoria para desarrollo
-    const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://brunodisabella:VS0IXOXufR1ZGVOn@cluster0.mongodb.net/matechat';
+    const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://brunodisabella:VS0IXOXufR1ZGVOn@matechat.c0ulq.mongodb.net/matechat?retryWrites=true&w=majority&appName=MateChat';
     
     console.log(`Intentando conectar a MongoDB con URI: ${mongoURI.replace(/\/\/[^:]+:[^@]+@/, '//****:****@')}`); // Ocultar credenciales en logs
     
