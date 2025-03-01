@@ -44,6 +44,9 @@ try {
 // Establecer servicio de WhatsApp en el controlador
 whatsappController.setWhatsAppService(whatsappService);
 
+// Hacer disponible el servicio de WhatsApp para los controladores
+app.set('whatsappService', whatsappService);
+
 // Rutas
 app.use('/', require('./src/routes/web'));
 app.use('/api', require('./src/routes/api'));

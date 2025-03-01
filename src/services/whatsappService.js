@@ -1,6 +1,5 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, RemoteAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
-const Message = require('../models/Message');
 const axios = require('axios');
 require('dotenv').config();
 
@@ -14,19 +13,20 @@ class WhatsAppService {
   }
 
   initialize() {
-    // Configuración específica para entornos cloud
     const isProduction = process.env.NODE_ENV === 'production';
     console.log(`Inicializando WhatsApp en modo: ${isProduction ? 'producción' : 'desarrollo'}`);
     
+    // Configuración de Chrome para Railway
     const puppeteerOptions = {
       headless: true,
+      // Usar la versión de Chrome estable instalada en el sistema
+      executablePath: '/usr/bin/google-chrome-stable',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote',
         '--disable-gpu',
         '--disable-extensions',
         '--disable-features=site-per-process',
@@ -34,26 +34,23 @@ class WhatsAppService {
         '--ignore-certificate-errors',
         '--ignore-certificate-errors-spki-list',
         '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      ],
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
+      ]
     };
     
-    // Si estamos en Railway, usamos configuración especial
     if (process.env.RAILWAY_STATIC_URL) {
-      console.log('Detectado entorno Railway, usando configuración específica');
-      puppeteerOptions.args.push('--single-process');
+      console.log('Detectado entorno Railway, usando configuración optimizada');
     }
     
     this.client = new Client({
+      // Usar autenticación local con ruta específica
       authStrategy: new LocalAuth({
-        dataPath: './.wwebjs_auth'
+        dataPath: '.wwebjs_auth' // Sin el ./ inicial
       }),
       puppeteer: puppeteerOptions,
-      webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/4.2405.7.html'
-      },
-      webVersion: '2.2405.7'
+      // Usar una versión específica de WhatsApp Web
+      restartOnAuthFail: true,
+      takeoverOnConflict: true,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     });
 
     this.client.on('qr', (qr) => {
@@ -98,15 +95,9 @@ class WhatsAppService {
           responseStatus: 'Pending'
         };
         
-        // Intentar guardar en MongoDB, si falla almacenar en memoria
-        try {
-          const dbMessage = new Message(newMessage);
-          await dbMessage.save();
-          console.log('Mensaje guardado en MongoDB:', newMessage);
-        } catch (dbError) {
-          console.warn('No se pudo guardar en MongoDB, guardando en memoria:', dbError.message);
-          this.messageMemory.push(newMessage);
-        }
+        // Almacenar en memoria
+        this.messageMemory.push(newMessage);
+        console.log('Mensaje guardado en memoria:', newMessage);
         
         // Emitir mensaje a los clientes conectados
         this.io.emit('newMessage', {
@@ -191,23 +182,15 @@ class WhatsAppService {
       // Enviar el mensaje
       const response = await this.client.sendMessage(formattedNumber, content);
       
-      // Actualizar el estado del mensaje en la base de datos
+      // Actualizar el estado del mensaje en memoria
       if (response) {
-        try {
-          await Message.findOneAndUpdate(
-            { phoneNumber: formattedNumber, responseStatus: 'Pending' },
-            { responseStatus: 'Responded' },
-            { sort: { timestamp: -1 } }
-          );
-        } catch (error) {
-          console.warn('No se pudo actualizar el mensaje en MongoDB, actualizando en memoria');
-          // Actualizar en la memoria si MongoDB no está disponible
-          const messageIndex = this.messageMemory.findIndex(
-            m => m.phoneNumber === formattedNumber && m.responseStatus === 'Pending'
-          );
-          if (messageIndex !== -1) {
-            this.messageMemory[messageIndex].responseStatus = 'Responded';
-          }
+        // Actualizar en la memoria
+        const messageIndex = this.messageMemory.findIndex(
+          m => m.phoneNumber === formattedNumber && m.responseStatus === 'Pending'
+        );
+        if (messageIndex !== -1) {
+          this.messageMemory[messageIndex].responseStatus = 'Responded';
+          console.log('Estado del mensaje actualizado en memoria');
         }
       }
       

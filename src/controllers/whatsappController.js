@@ -8,6 +8,7 @@ exports.setWhatsAppService = (service) => {
 exports.handleWebhook = async (req, res) => {
   // This endpoint is for N8N to receive WhatsApp messages
   // The actual message handling is done in the whatsappService
+  console.log('Webhook recibido:', req.body);
   res.status(200).json({ status: 'received' });
 };
 
