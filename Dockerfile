@@ -47,7 +47,8 @@ WORKDIR /usr/src/app
 
 # Install app dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+# Using npm install instead of npm ci as package-lock.json might not be available
+RUN npm install --production
 
 # Bundle app source
 COPY . .
