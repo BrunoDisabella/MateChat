@@ -1,46 +1,102 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MateChat - WhatsApp Connection</title>
+    <title>MateChat - Conexión de WhatsApp</title>
     <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .status-button {
+            display: inline-block;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: all 0.3s ease;
+        }
+        .connected {
+            background-color: #25D366;
+            color: white;
+        }
+        .disconnected {
+            background-color: #E60023;
+            color: white;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 25px;
+            background-color: #25D366;
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: bold;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+        .button:hover {
+            background-color: #128C7E;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        #connection-success {
+            text-align: center;
+            padding: 30px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: #25D366;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>MateChat</h1>
-            <h2>WhatsApp Web Connection</h2>
+            <h2>Conexión de WhatsApp</h2>
         </header>
         
         <main>
             <div class="whatsapp-connect">
                 <div id="whatsapp-status">
-                    <p>Status: <span id="connection-status">Disconnected</span></p>
+                    <p>Estado: <span id="connection-status" class="status-button disconnected">Desconectado</span></p>
                 </div>
                 
                 <div id="qrcode-container">
-                    <h3>Scan the QR code with WhatsApp to connect</h3>
+                    <h3>Escanea el código QR con WhatsApp para conectar</h3>
                     <div id="qrcode">
-                        <p>Loading QR code...</p>
+                        <p><span class="loading-spinner"></span> Cargando código QR...</p>
                     </div>
                     <p class="instructions">
-                        1. Open WhatsApp on your phone<br>
-                        2. Tap Menu or Settings and select WhatsApp Web<br>
-                        3. Point your phone to this screen to capture the code
+                        1. Abre WhatsApp Business en tu teléfono<br>
+                        2. Toca en Menú o Ajustes y selecciona WhatsApp Web<br>
+                        3. Apunta tu teléfono hacia esta pantalla para capturar el código
                     </p>
                 </div>
                 
                 <div id="connection-success" style="display: none;">
-                    <h3>WhatsApp Connected!</h3>
-                    <p>Your WhatsApp is now connected to MateChat.</p>
-                    <a href="/chat" class="button">Go to Chat Interface</a>
+                    <h3>¡WhatsApp Conectado!</h3>
+                    <p>Tu WhatsApp está ahora conectado a MateChat.</p>
+                    <a href="/chat" class="button">Ir a la Interfaz de Chat</a>
                 </div>
             </div>
         </main>
         
         <footer>
-            <p>&copy; 2025 MateChat - WhatsApp Integration</p>
+            <p>&copy; 2025 MateChat - Integración de WhatsApp</p>
         </footer>
     </div>
 
@@ -70,32 +126,69 @@
             // El servidor enviará el QR si está disponible
         });
 
+        // Manejar el estado de WhatsApp
         socket.on('whatsappStatus', (data) => {
-            if (data.status === 'connected') {
-                connectionStatus.textContent = 'Connected';
-                connectionStatus.className = 'connected';
+            console.log("Cambio de estado de WhatsApp:", data);
+            updateWhatsAppStatus(data.status === 'connected');
+        });
+        
+        // Función para actualizar la interfaz según el estado de conexión
+        function updateWhatsAppStatus(isConnected) {
+            if (isConnected) {
+                connectionStatus.textContent = 'Conectado';
+                connectionStatus.className = 'status-button connected';
                 qrcodeContainer.style.display = 'none';
                 connectionSuccess.style.display = 'block';
+                
+                // Redirigir automáticamente después de 3 segundos
+                setTimeout(() => {
+                    window.location.href = '/chat';
+                }, 3000);
+                
+                // Mostrar cuenta regresiva
+                let seconds = 3;
+                const countdownInterval = setInterval(() => {
+                    seconds--;
+                    document.querySelector('#connection-success p').innerHTML = 
+                        `Tu WhatsApp está ahora conectado a MateChat.<br>Redirigiendo en ${seconds} segundos...`;
+                    
+                    if (seconds <= 0) {
+                        clearInterval(countdownInterval);
+                    }
+                }, 1000);
             } else {
-                connectionStatus.textContent = 'Disconnected';
-                connectionStatus.className = 'disconnected';
+                connectionStatus.textContent = 'Desconectado';
+                connectionStatus.className = 'status-button disconnected';
                 qrcodeContainer.style.display = 'block';
                 connectionSuccess.style.display = 'none';
             }
-        });
+        }
 
-        // Check initial status
+        // Comprobar estado inicial
         fetch('/api/whatsapp-status')
             .then(response => response.json())
             .then(data => {
+                console.log("Estado inicial de WhatsApp:", data);
                 if (data.isConnected) {
-                    connectionStatus.textContent = 'Connected';
-                    connectionStatus.className = 'connected';
-                    qrcodeContainer.style.display = 'none';
-                    connectionSuccess.style.display = 'block';
+                    updateWhatsAppStatus(true);
                 }
             })
-            .catch(error => console.error('Error fetching WhatsApp status:', error));
+            .catch(error => console.error('Error al obtener el estado de WhatsApp:', error));
+            
+        // Hacer que el botón de estado sea clicable para reintentar conexión
+        connectionStatus.addEventListener('click', function() {
+            if (this.textContent === 'Desconectado') {
+                // Solicitar nuevo código QR
+                socket.emit('requestQR');
+                
+                // Mostrar mensaje de espera
+                qrcodeElement.innerHTML = `
+                    <p style="text-align: center;">
+                        <span class="loading-spinner"></span> Solicitando nuevo código QR...
+                    </p>
+                `;
+            }
+        });
     </script>
 </body>
 </html>

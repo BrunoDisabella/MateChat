@@ -71,8 +71,22 @@ class WhatsAppService {
 
     this.client.on('ready', () => {
       this.isConnected = true;
+      this.qrCode = null; // Eliminar el código QR cuando ya está conectado
       this.io.emit('whatsappStatus', { status: 'connected' });
       console.log('¡Cliente de WhatsApp listo!');
+      
+      // Guardar información del número de teléfono conectado
+      this.client.getState()
+        .then(state => {
+          console.log('Estado de WhatsApp:', state);
+          return this.client.getInfo();
+        })
+        .then(info => {
+          console.log('Información del teléfono conectado:', info);
+        })
+        .catch(err => {
+          console.error('Error al obtener información del cliente de WhatsApp:', err);
+        });
     });
 
     this.client.on('disconnected', () => {

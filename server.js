@@ -72,6 +72,32 @@ io.on('connection', (socket) => {
     });
   }
   
+  // Manejar solicitudes de nuevo código QR
+  socket.on('requestQR', () => {
+    console.log('Cliente solicitó un nuevo código QR');
+    
+    // Reiniciar cliente WhatsApp para generar nuevo QR
+    if (!whatsappService.isConnected) {
+      console.log('Reiniciando cliente WhatsApp para generar nuevo QR');
+      
+      try {
+        // Reinicializar solo si no está conectado
+        whatsappService.client.initialize()
+          .then(() => {
+            console.log('WhatsApp reinicializado correctamente');
+          })
+          .catch(err => {
+            console.error('Error al reinicializar WhatsApp:', err);
+          });
+      } catch (error) {
+        console.error('Error al solicitar nuevo QR:', error);
+      }
+    } else {
+      console.log('WhatsApp ya está conectado, no se generará nuevo QR');
+      socket.emit('whatsappStatus', { status: 'connected' });
+    }
+  });
+  
   socket.on('disconnect', () => {
     console.log('Cliente desconectado');
   });
