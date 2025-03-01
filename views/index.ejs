@@ -129,7 +129,40 @@
         // Manejar el estado de WhatsApp
         socket.on('whatsappStatus', (data) => {
             console.log("Cambio de estado de WhatsApp:", data);
-            updateWhatsAppStatus(data.status === 'connected');
+            
+            if (data.status === 'connected') {
+                updateWhatsAppStatus(true);
+            } else if (data.status === 'disconnected') {
+                updateWhatsAppStatus(false);
+            } else if (data.status === 'regenerating') {
+                // Mostrar estado de regenerando QR
+                connectionStatus.textContent = 'Regenerando QR';
+                connectionStatus.className = 'status-button disconnected';
+                qrcodeContainer.style.display = 'block';
+                connectionSuccess.style.display = 'none';
+                
+                // Mostrar mensaje de espera
+                qrcodeElement.innerHTML = `
+                    <p style="text-align: center;">
+                        <span class="loading-spinner"></span> Inicializando nuevo WhatsApp...
+                    </p>
+                    <p style="text-align: center; font-size: 0.9em; color: #666;">
+                        Esto puede tardar unos momentos. Por favor espera.
+                    </p>
+                `;
+            } else if (data.status === 'error') {
+                // Mostrar mensaje de error
+                connectionStatus.textContent = 'Error';
+                connectionStatus.className = 'status-button disconnected';
+                
+                qrcodeElement.innerHTML = `
+                    <p style="text-align: center; color: #E60023;">
+                        <span style="font-size: 32px;">⚠️</span><br>
+                        Error al generar el código QR.<br>
+                        Por favor, recarga la página.
+                    </p>
+                `;
+            }
         });
         
         // Función para actualizar la interfaz según el estado de conexión

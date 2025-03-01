@@ -73,7 +73,7 @@ io.on('connection', (socket) => {
   }
   
   // Manejar solicitudes de nuevo código QR
-  socket.on('requestQR', () => {
+  socket.on('requestQR', async () => {
     console.log('Cliente solicitó un nuevo código QR');
     
     // Reiniciar cliente WhatsApp para generar nuevo QR
@@ -81,16 +81,23 @@ io.on('connection', (socket) => {
       console.log('Reiniciando cliente WhatsApp para generar nuevo QR');
       
       try {
-        // Reinicializar solo si no está conectado
-        whatsappService.client.initialize()
-          .then(() => {
-            console.log('WhatsApp reinicializado correctamente');
-          })
-          .catch(err => {
-            console.error('Error al reinicializar WhatsApp:', err);
-          });
+        // Notificar al cliente que estamos trabajando en generar un nuevo QR
+        socket.emit('whatsappStatus', { status: 'regenerating' });
+        
+        // Primero limpiamos la sesión anterior
+        await whatsappService.cleanSession();
+        
+        // Crear una nueva instancia del servicio de WhatsApp
+        whatsappService = new WhatsAppService(io);
+        app.set('whatsappService', whatsappService);
+        whatsappController.setWhatsAppService(whatsappService);
+        
+        // Inicializar el nuevo servicio
+        whatsappService.initialize();
+        console.log('Nueva sesión de WhatsApp inicializada');
       } catch (error) {
         console.error('Error al solicitar nuevo QR:', error);
+        socket.emit('whatsappStatus', { status: 'error', message: 'No se pudo generar un nuevo código QR' });
       }
     } else {
       console.log('WhatsApp ya está conectado, no se generará nuevo QR');

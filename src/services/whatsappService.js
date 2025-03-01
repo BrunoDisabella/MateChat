@@ -12,6 +12,35 @@ class WhatsAppService {
     this.messageMemory = []; // Para almacenar mensajes en memoria si MongoDB no está disponible
   }
 
+  // Método para limpiar la sesión anterior (útil para reinicializar)
+  async cleanSession() {
+    try {
+      console.log('Limpiando sesión anterior...');
+      
+      // Si hay un cliente existente, intentar cerrarlo correctamente
+      if (this.client) {
+        try {
+          console.log('Intentando cerrar el cliente actual...');
+          await this.client.destroy();
+          console.log('Cliente cerrado correctamente');
+        } catch (err) {
+          console.warn('Error al cerrar el cliente, continuando con la limpieza:', err);
+        }
+      }
+
+      // Restablecer estados
+      this.client = null;
+      this.qrCode = null;
+      this.isConnected = false;
+      
+      console.log('Sesión limpiada correctamente');
+      return true;
+    } catch (error) {
+      console.error('Error al limpiar sesión:', error);
+      return false;
+    }
+  }
+  
   initialize() {
     const isProduction = process.env.NODE_ENV === 'production';
     console.log(`Inicializando WhatsApp en modo: ${isProduction ? 'producción' : 'desarrollo'}`);
@@ -151,14 +180,7 @@ class WhatsAppService {
       console.error('Error de autenticación de WhatsApp:', error);
       this.qrCode = null;
       this.isConnected = false;
-      
-      // Intentar reinicializar después de un error de autenticación
-      setTimeout(() => {
-        console.log('Intentando reinicializar cliente WhatsApp después de error de autenticación...');
-        this.client.initialize().catch(err => {
-          console.error('Error al reinicializar WhatsApp client:', err);
-        });
-      }, 10000);
+      this.io.emit('whatsappStatus', { status: 'disconnected' });
     });
     
     // Agregar un manejador para otros errores del cliente
