@@ -160,6 +160,17 @@
             color: #777;
             font-size: 0.9rem;
         }
+        
+        .debug-button {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 8px 15px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -189,7 +200,13 @@
                         <li>Selecciona <strong>Dispositivos vinculados</strong></li>
                         <li>Toca en <strong>Vincular un dispositivo</strong></li>
                         <li>Escanea el código QR de esta pantalla</li>
+                        <li>Espera hasta que veas "Autenticado" o "Conectado"</li>
                     </ol>
+                </div>
+                
+                <!-- Botón para forzar verificación estado -->
+                <div style="text-align: center; margin-top: 20px;">
+                    <button id="check-status" class="debug-button">Verificar Estado de Conexión</button>
                 </div>
             </div>
             
@@ -226,6 +243,7 @@
         const qrcodeElement = document.getElementById('qrcode');
         const connectionSuccess = document.getElementById('connection-success');
         const manualRedirectButton = document.getElementById('manual-redirect');
+        const checkStatusButton = document.getElementById('check-status');
         
         // Variables de control
         let redirectTimer = null;
@@ -348,6 +366,49 @@
         if (manualRedirectButton) {
             manualRedirectButton.addEventListener('click', () => {
                 forceRedirect('/chat?force=true');
+            });
+        }
+        
+        // Configurar botón para verificar estado manualmente
+        if (checkStatusButton) {
+            checkStatusButton.addEventListener('click', () => {
+                console.log('Verificando estado manualmente...');
+                checkStatusButton.innerHTML = '<span class="loading-spinner"></span> Verificando...';
+                checkStatusButton.disabled = true;
+                
+                // Solicitar estado actualizado al servidor
+                fetch('/api/whatsapp-status')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Estado obtenido:', data);
+                        checkStatusButton.innerHTML = 'Verificar Estado de Conexión';
+                        checkStatusButton.disabled = false;
+                        
+                        if (data.isConnected) {
+                            connectionStatus.textContent = 'Conectado';
+                            connectionStatus.className = 'status-button connected';
+                            
+                            // Mostrar panel de éxito y preparar redirección
+                            qrcodeContainer.style.display = 'none';
+                            connectionSuccess.style.display = 'block';
+                            
+                            // Almacenar estado para futuras visitas
+                            localStorage.setItem('whatsappConnected', 'true');
+                            
+                            // Redirección automatizada
+                            redirectTimer = setTimeout(() => {
+                                window.location.href = '/chat?force=true';
+                            }, 3000);
+                        } else {
+                            alert('WhatsApp aún no está conectado. Por favor, espera más tiempo o intenta escanear el QR de nuevo.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error al verificar estado:', error);
+                        checkStatusButton.innerHTML = 'Verificar Estado de Conexión';
+                        checkStatusButton.disabled = false;
+                        alert('Error al verificar el estado. Por favor, intenta de nuevo.');
+                    });
             });
         }
     </script>

@@ -61,7 +61,7 @@ class WhatsAppService {
     
     // Configuración simple y directa de puppeteer
     const puppeteerOptions = {
-      headless: 'new',
+      headless: true, // Usar 'true' en lugar de 'new' para compatibilidad con versiones anteriores
       args: [
         '--no-sandbox', 
         '--disable-setuid-sandbox',
@@ -70,8 +70,11 @@ class WhatsAppService {
         '--no-first-run',
         '--disable-gpu',
         '--disable-extensions',
-        '--disable-features=site-per-process'
-      ]
+        '--disable-features=site-per-process',
+        '--ignore-certificate-errors',
+        '--ignore-certificate-errors-spki-list'
+      ],
+      executablePath: '/usr/bin/google-chrome-stable' // Especificar ruta a Chrome
     };
     
     // Usar siempre el mismo ID de sesión para mantener la persistencia
@@ -83,11 +86,7 @@ class WhatsAppService {
         clientId: sessionId,
         dataPath: '/wwebjs_data/.wwebjs_auth' // Ruta de volumen persistente en Railway
       }),
-      puppeteer: {
-        ...puppeteerOptions,
-        // Usar directorio persistente para perfil de Chrome
-        userDataDir: '/wwebjs_data/chrome_profile'
-      },
+      puppeteer: puppeteerOptions, // Sin userDataDir personalizado, ya que no es compatible con LocalAuth
       qrMaxRetries: 5, // Reducir para evitar múltiples intentos si hay problemas
       qrRefreshIntervalMs: 30000, // Aumentar intervalo para dar más tiempo
       restartOnAuthFail: true,
