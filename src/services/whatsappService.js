@@ -116,7 +116,7 @@ class WhatsAppService {
     
     // Evento ready - se dispara cuando el cliente está completamente listo
     this.client.on('ready', () => {
-      console.log('¡Cliente de WhatsApp listo!');
+      console.log('¡Cliente de WhatsApp listo! CONEXIÓN EXITOSA');
       this.isConnected = true;
       this.qrCode = null; // Eliminar el código QR cuando ya está conectado
       
@@ -130,19 +130,35 @@ class WhatsAppService {
           console.log('Información del teléfono conectado:', info);
           
           // Enviar información detallada al cliente
-          this.io.emit('whatsappStatus', { 
+          const connectionData = { 
             status: 'connected',
+            timestamp: new Date().toISOString(),
             info: {
               platform: info?.platform || 'unknown',
               phone: info?.wid?.user || 'unknown',
               name: info?.pushname || 'unknown'
             }
-          });
+          };
+          
+          console.log('Enviando evento de conexión a todos los clientes:', connectionData);
+          this.io.emit('whatsappStatus', connectionData);
+          
+          // Enviar evento adicional para garantizar que todos reciban la notificación
+          setTimeout(() => {
+            console.log('Enviando evento de conexión de respaldo...');
+            this.io.emit('forceRedirect', { url: '/chat' });
+          }, 2000);
         })
         .catch(err => {
           console.error('Error al obtener información del cliente de WhatsApp:', err);
           // Enviar evento de conexión incluso si falla obtener la info
+          console.log('Enviando evento de conexión básico debido a error');
           this.io.emit('whatsappStatus', { status: 'connected' });
+          
+          // Evento de respaldo
+          setTimeout(() => {
+            this.io.emit('forceRedirect', { url: '/chat' });
+          }, 2000);
         });
     });
 

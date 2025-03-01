@@ -148,9 +148,11 @@ const cleanupOldSessions = () => {
 
 // Iniciar servidor
 const PORT = process.env.PORT || 3000;
+const APP_URL = process.env.RAILWAY_STATIC_URL || `http://localhost:${PORT}`;
+
 server.listen(PORT, () => {
   console.log(`Servidor en ejecución en el puerto ${PORT}`);
-  console.log(`Visita http://localhost:${PORT} para conectar WhatsApp`);
+  console.log(`Visita ${APP_URL} para conectar WhatsApp`);
   
   // Ejecutar limpieza al iniciar
   cleanupOldSessions();

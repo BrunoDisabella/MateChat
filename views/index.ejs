@@ -91,6 +91,17 @@
                     <h3>¡WhatsApp Conectado!</h3>
                     <p>Tu WhatsApp está ahora conectado a MateChat.</p>
                     <a href="/chat" class="button">Ir a la Interfaz de Chat</a>
+                    
+                    <!-- Botón de redirección explícito adicional -->
+                    <div style="margin-top: 20px; text-align: center;">
+                        <p>Si no eres redirigido automáticamente:</p>
+                        <button id="manual-redirect" style="background-color: #128C7E; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                            HACER CLIC AQUÍ PARA IR AL CHAT
+                        </button>
+                    </div>
+                    
+                    <!-- Iframe oculto para forzar la carga de la página de chat -->
+                    <iframe id="preload-frame" src="/chat" style="width:0; height:0; border:0; border:none; position: absolute;"></iframe>
                 </div>
             </div>
         </main>
@@ -101,6 +112,13 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Intentar detectar si ya estamos conectados antes de cargar la página
+        if (localStorage.getItem('whatsappConnected') === 'true') {
+            console.log("Estado de conexión encontrado en localStorage, redirigiendo a chat");
+            window.location.href = '/chat';
+        }
+    </script>
     <script>
         const socket = io();
         const qrcodeElement = document.getElementById('qrcode');
@@ -126,11 +144,24 @@
             // El servidor enviará el QR si está disponible
         });
 
+        // Escuchar evento específico de redirección forzada
+        socket.on('forceRedirect', (data) => {
+            console.log("Recibido evento de redirección forzada:", data);
+            if (data && data.url) {
+                // Intentar forzar la redirección usando múltiples métodos
+                window.location.href = data.url;
+                setTimeout(() => {
+                    window.location.replace(data.url);
+                }, 200);
+            }
+        });
+        
         // Manejar el estado de WhatsApp
         socket.on('whatsappStatus', (data) => {
             console.log("Cambio de estado de WhatsApp:", data);
             
             if (data.status === 'connected') {
+                console.log("CONEXIÓN EXITOSA DETECTADA");
                 updateWhatsAppStatus(true);
                 
                 // Guardar estado en localStorage para persistencia
@@ -194,10 +225,29 @@
                 qrcodeContainer.style.display = 'none';
                 connectionSuccess.style.display = 'block';
                 
+                // Mostrar botón explícito de redirección y cuenta regresiva
+                document.querySelector('#connection-success h3').textContent = '¡WhatsApp Conectado!';
+                document.querySelector('#connection-success p').innerHTML = 
+                    `Tu WhatsApp está ahora conectado a MateChat.<br>Redirigiendo en 3 segundos...`;
+                
+                // Configurar botones de redirección
+                const chatButton = document.querySelector('#connection-success a.button');
+                chatButton.style.display = 'inline-block';
+                chatButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    forceRedirect();
+                });
+                
+                // Configurar botón manual de redirección
+                const manualButton = document.getElementById('manual-redirect');
+                if (manualButton) {
+                    manualButton.addEventListener('click', function() {
+                        forceRedirect();
+                    });
+                }
+                
                 // Redirigir automáticamente después de 3 segundos
-                setTimeout(() => {
-                    window.location.href = '/chat';
-                }, 3000);
+                const redirectTimer = setTimeout(forceRedirect, 3000);
                 
                 // Mostrar cuenta regresiva
                 let seconds = 3;
@@ -210,6 +260,43 @@
                         clearInterval(countdownInterval);
                     }
                 }, 1000);
+                
+                // Función para forzar la redirección de diferentes maneras
+                function forceRedirect() {
+                    try {
+                        clearTimeout(redirectTimer);
+                        
+                        // Intentar varias formas de redirección
+                        console.log("Forzando redirección a /chat");
+                        
+                        // Enviar petición al servidor notificando redirección
+                        fetch('/api/acknowledge-connection', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ redirecting: true, timestamp: new Date().toISOString() })
+                        }).catch(err => console.warn("Error al enviar notificación de redirección:", err));
+                        
+                        // Método 1: window.location.href con parámetro de cache busting
+                        window.location.href = '/chat?t=' + new Date().getTime();
+                        
+                        // Método 2: window.location.replace (como respaldo)
+                        setTimeout(() => {
+                            window.location.replace('/chat?t=' + new Date().getTime());
+                        }, 500);
+                        
+                        // Método 3: abrir en nueva pestaña y cerrar esta (último recurso)
+                        setTimeout(() => {
+                            const newTab = window.open('/chat', '_blank');
+                            if (newTab) {
+                                window.close();
+                            }
+                        }, 1000);
+                    } catch (error) {
+                        console.error("Error durante la redirección:", error);
+                        // Mostrar mensaje claro al usuario
+                        alert("Error al redireccionar. Por favor, haz clic en el botón 'HACER CLIC AQUÍ PARA IR AL CHAT'");
+                    }
+                }
             } else {
                 connectionStatus.textContent = 'Desconectado';
                 connectionStatus.className = 'status-button disconnected';
