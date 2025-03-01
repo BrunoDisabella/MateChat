@@ -4,328 +4,63 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MateChat</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 30px;
-            background-color: white;
-        }
-        
-        .logo {
-            display: flex;
-            align-items: center;
-        }
-        
-        .logo img {
-            width: 30px;
-            height: 30px;
-            margin-right: 10px;
-        }
-        
-        .logo-text {
-            font-size: 18px;
-            color: #128C7E;
-            font-weight: bold;
-        }
-        
-        .disconnect-btn {
-            background-color: #E74C3C;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 14px;
-            display: none;
-        }
-        
-        .main-content {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .login-card {
-            background-color: white;
-            width: 100%;
-            max-width: 780px;
-            border-radius: 10px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
-        
-        .card-title {
-            font-size: 24px;
-            color: #444;
-            margin-bottom: 15px;
-        }
-        
-        .card-subtitle {
-            color: #666;
-            margin-bottom: 25px;
-        }
-        
-        .steps {
-            text-align: left;
-            margin-left: 20px;
-            margin-bottom: 25px;
-        }
-        
-        .steps li {
-            margin-bottom: 10px;
-            color: #555;
-        }
-        
-        .qr-container {
-            margin: 30px auto;
-            width: 200px;
-            height: 200px;
-            border: 1px solid #ddd;
-            padding: 5px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .qr-code {
-            max-width: 100%;
-            max-height: 100%;
-        }
-        
-        .checkbox-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-        
-        .checkbox-container input {
-            margin-right: 10px;
-        }
-        
-        .alt-login {
-            color: #128C7E;
-            text-decoration: none;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        
-        .footer {
-            text-align: center;
-            padding: 15px;
-            color: #888;
-            font-size: 12px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .footer img {
-            width: 16px;
-            height: 16px;
-            margin: 0 5px;
-        }
-
-        .connection-info {
-            display: none;
-            text-align: center;
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #D5F5E3;
-            border-radius: 8px;
-        }
-
-        .loading-indicator {
-            display: none;
-            font-size: 14px;
-            color: #666;
-            margin: 10px 0;
-        }
-
-        .error-message {
-            display: none;
-            color: #E74C3C;
-            margin-top: 10px;
-        }
-
-        .success-info {
-            display: none;
-        }
-    </style>
+    <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-    <div class="header">
-        <div class="logo">
-            <div style="width: 30px; height: 30px; background-color: #128C7E; border-radius: 50%; display: flex; justify-content: center; align-items: center;">
-                <div style="width: 15px; height: 15px; background-color: white; border-radius: 50%;"></div>
+    <div class="main-container">
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i>M</i>
+                </div>
+                <span id="businessName">MateChat</span>
             </div>
-            <span class="logo-text">MateChat</span>
+            <div class="status-info">
+                <div id="statusIndicator" class="status-indicator status-disconnected">Desconectado</div>
+                <button id="connectButton" class="connect-btn">Conectar</button>
+                <button id="disconnectButton" class="disconnect-btn">Desconectar</button>
+            </div>
         </div>
-        <button id="disconnectBtn" class="disconnect-btn">Desconectar</button>
-    </div>
-    
-    <div class="main-content">
-        <div class="login-card">
-            <h2 class="card-title">Inicia sesión en MateChat</h2>
-            <p class="card-subtitle">Envía mensajes privados a tus amigos y familiares a través de WhatsApp en tu navegador.</p>
-            
-            <ol class="steps">
-                <li>Abre WhatsApp en tu teléfono.</li>
-                <li>Toca Menú ⋮ en Android o Ajustes ⚙️ ⚙️ en iPhone.</li>
-                <li>Toca Dispositivos vinculados y, luego, Vincular un dispositivo.</li>
-                <li>Apunta tu teléfono hacia esta pantalla para escanear el código QR.</li>
-            </ol>
-            
-            <div class="qr-container" id="qrContainer">
-                <div class="loading-indicator" id="loadingIndicator">Generando código QR...</div>
-                <img src="" alt="Código QR" class="qr-code" id="qrCode" style="display: none;">
+        
+        <div class="content">
+            <div class="conversations-panel">
+                <div class="search-bar">
+                    <input type="text" class="search-input" placeholder="Buscar o iniciar un nuevo chat" id="searchInput">
+                </div>
+                <div class="conversations-list" id="conversationsList">
+                    <!-- Las conversaciones se cargarán dinámicamente -->
+                    <div class="conversation-item empty">
+                        Conecta tu cuenta de WhatsApp Business para ver las conversaciones
+                    </div>
+                </div>
             </div>
             
-            <div class="error-message" id="errorMessage"></div>
-            
-            <div class="connection-info" id="connectionInfo">
-                <h3>¡Conexión exitosa!</h3>
-                <p>WhatsApp conectado para: <span id="userName">Usuario</span></p>
-                <p>Número: <span id="userNumber">+123456789</span></p>
+            <div class="chat-panel">
+                <div class="chat-header">
+                    <button class="back-button">&larr;</button>
+                    <div class="contact-details">
+                        <div class="contact-header-name">Selecciona una conversación</div>
+                        <div class="contact-status">0 mensajes</div>
+                    </div>
+                </div>
+                <div class="messages-container" id="messagesContainer">
+                    <div class="empty-messages">
+                        Selecciona una conversación para ver los mensajes
+                    </div>
+                </div>
+                <div class="message-input-container">
+                    <input type="text" class="message-input" placeholder="Escribe un mensaje" id="messageInput">
+                    <button class="send-button" id="sendButton">→</button>
+                </div>
             </div>
-            
-            <div class="checkbox-container">
-                <input type="checkbox" id="keepSession" checked>
-                <label for="keepSession">Mantener la sesión iniciada en este navegador</label>
-                <span style="margin-left: 5px;">ⓘ</span>
-            </div>
-            
-            <a href="#" class="alt-login" id="altLoginBtn">Iniciar sesión con número de teléfono</a>
+        </div>
+        
+        <div class="footer">
+            <span>🔒</span>
+            <span>Powered by WhatsApp Business API</span>
         </div>
     </div>
-    
-    <div class="footer">
-        <span>🔒 🔒</span>
-        <span>Tus mensajes personales están cifrados de extremo a extremo</span>
-    </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const socket = io();
-            const qrCode = document.getElementById('qrCode');
-            const qrContainer = document.getElementById('qrContainer');
-            const loadingIndicator = document.getElementById('loadingIndicator');
-            const errorMessage = document.getElementById('errorMessage');
-            const connectionInfo = document.getElementById('connectionInfo');
-            const userName = document.getElementById('userName');
-            const userNumber = document.getElementById('userNumber');
-            const disconnectBtn = document.getElementById('disconnectBtn');
-            const altLoginBtn = document.getElementById('altLoginBtn');
-
-            // Mostrar cargando
-            loadingIndicator.style.display = 'block';
-            
-            // Iniciar conexión
-            socket.emit('startConnection');
-
-            // Recibir código QR
-            socket.on('qrCode', (qrUrl) => {
-                loadingIndicator.style.display = 'none';
-                qrCode.style.display = 'block';
-                qrCode.src = qrUrl;
-                errorMessage.style.display = 'none';
-            });
-
-            // Manejar error de autenticación
-            socket.on('authFailure', (message) => {
-                loadingIndicator.style.display = 'none';
-                errorMessage.style.display = 'block';
-                errorMessage.textContent = `Error de autenticación: ${message}`;
-            });
-
-            // Manejar desconexión de WhatsApp
-            socket.on('whatsappDisconnected', (reason) => {
-                loadingIndicator.style.display = 'none';
-                qrCode.style.display = 'none';
-                connectionInfo.style.display = 'none';
-                disconnectBtn.style.display = 'none';
-                errorMessage.style.display = 'block';
-                errorMessage.textContent = `WhatsApp desconectado: ${reason}`;
-                
-                // Reintentar conexión después de 3 segundos
-                setTimeout(() => {
-                    errorMessage.style.display = 'none';
-                    loadingIndicator.style.display = 'block';
-                    socket.emit('startConnection');
-                }, 3000);
-            });
-
-            // Manejar conexión exitosa
-            socket.on('whatsappReady', (info) => {
-                loadingIndicator.style.display = 'none';
-                qrCode.style.display = 'none';
-                connectionInfo.style.display = 'block';
-                disconnectBtn.style.display = 'block';
-                errorMessage.style.display = 'none';
-                
-                userName.textContent = info.name;
-                userNumber.textContent = info.number;
-            });
-
-            // Manejar autenticación
-            socket.on('authenticated', () => {
-                loadingIndicator.style.display = 'block';
-                qrCode.style.display = 'none';
-                errorMessage.style.display = 'none';
-            });
-
-            // Manejar conexión ya existente
-            socket.on('alreadyConnected', (info) => {
-                loadingIndicator.style.display = 'none';
-                qrCode.style.display = 'none';
-                connectionInfo.style.display = 'block';
-                disconnectBtn.style.display = 'block';
-                errorMessage.style.display = 'none';
-                
-                userName.textContent = info.name;
-                userNumber.textContent = info.number;
-            });
-
-            // Manejar cierre de sesión exitoso
-            socket.on('loggedOut', () => {
-                loadingIndicator.style.display = 'block';
-                connectionInfo.style.display = 'none';
-                disconnectBtn.style.display = 'none';
-                
-                // Reiniciar conexión
-                setTimeout(() => {
-                    socket.emit('startConnection');
-                }, 1000);
-            });
-
-            // Evento para botón de desconexión
-            disconnectBtn.addEventListener('click', () => {
-                socket.emit('logout');
-                disconnectBtn.disabled = true;
-                disconnectBtn.textContent = 'Desconectando...';
-            });
-
-            // Prevenir acción en botón alternativo (placeholder)
-            altLoginBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                alert('Esta función no está disponible actualmente');
-            });
-        });
-    </script>
+    <script src="/js/app.js"></script>
 </body>
 </html>

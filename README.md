@@ -1,63 +1,81 @@
 # MateChat
 
-Aplicación web para conectar WhatsApp personal mediante código QR, diseñada para ser desplegada en Railway.
+Aplicación para conectar WhatsApp mediante la API oficial de WhatsApp Business.
 
-## Características
+## Descripción
 
-- Generación de código QR para escanear desde el teléfono
-- Conexión con WhatsApp Web mediante la librería whatsapp-web.js
-- Interfaz sencilla y amigable
-- Mantiene la sesión iniciada
-- Posibilidad de desconexión
+MateChat es una aplicación web que permite gestionar conversaciones de WhatsApp mediante la API oficial de WhatsApp Business. La aplicación permite:
+
+- Conectarse a la API de WhatsApp Business
+- Enviar y recibir mensajes
+- Gestionar conversaciones
+- Visualizar historial de mensajes
 
 ## Requisitos
 
-- Node.js 14 o superior
-- NPM
+- Node.js v14 o superior
+- Cuenta de WhatsApp Business API (Meta for Developers)
+- Credenciales de acceso a la API de WhatsApp
 
-## Instalación local
+## Instalación
 
-1. Clona este repositorio
-2. Instala las dependencias:
-   ```bash
-   npm install
-   ```
-3. Inicia el servidor de desarrollo:
-   ```bash
-   npm run dev
-   ```
-4. Abre tu navegador en `http://localhost:3000`
+1. Clonar el repositorio:
+```
+git clone https://github.com/tuusuario/matechat.git
+cd matechat
+```
 
-## Despliegue en Railway
+2. Instalar dependencias:
+```
+npm install
+```
 
-1. Crea una cuenta en [Railway](https://railway.app/) si aún no tienes una
-2. Conecta tu repositorio de GitHub
-3. Configura las variables de entorno si es necesario
-4. Railway detectará automáticamente el Procfile y desplegará la aplicación
+3. Configurar variables de entorno:
+Crea un archivo `.env` en la raíz del proyecto con el siguiente contenido:
+```
+# WhatsApp Business API credentials
+WHATSAPP_API_URL=https://graph.facebook.com/v19.0
+WHATSAPP_PHONE_NUMBER_ID=tu_phone_number_id
+WHATSAPP_BUSINESS_ACCOUNT_ID=tu_business_account_id
+WHATSAPP_ACCESS_TOKEN=tu_access_token
 
-## Tecnologías utilizadas
+# Server configuration
+PORT=3000
+NODE_ENV=development
+```
 
-- Node.js
-- Express
-- Socket.IO
-- whatsapp-web.js
-- QRCode
+4. Iniciar la aplicación:
+```
+npm start
+```
+
+## Configuración para Railway
+
+La aplicación está configurada para ser desplegada en Railway. Se incluye un archivo `Procfile` para este propósito. Solo es necesario configurar las variables de entorno en el panel de Railway.
+
+## Uso
+
+1. Abre la aplicación en tu navegador: `http://localhost:3000` (o la URL de tu despliegue)
+2. Haz clic en el botón "Conectar" para inicializar la conexión con WhatsApp Business API
+3. Una vez conectado, podrás ver tus conversaciones y enviar/recibir mensajes
 
 ## Estructura del proyecto
 
-```
-/
-├── src/
-│   ├── public/
-│   │   └── index.html
-│   └── index.js
-├── package.json
-├── Procfile
-└── README.md
-```
+- `/src`: Código fuente de la aplicación
+  - `/config`: Configuración de la aplicación
+  - `/public`: Archivos estáticos (HTML, CSS, JS)
+  - `/routes`: Rutas de la API
+  - `/services`: Servicios de la aplicación
+- `.env`: Variables de entorno (no incluido en el repositorio)
+- `package.json`: Dependencias y scripts
+- `Procfile`: Configuración para Railway
 
-## Notas importantes
+## Tecnologías utilizadas
 
-- La aplicación requiere que el usuario escanee un código QR con su WhatsApp para establecer la conexión
-- Railway proporcionará una URL pública para acceder a la aplicación
-- No almacena mensajes ni información sensible de WhatsApp
+- Node.js + Express: Backend
+- WhatsApp Business API: Integración con WhatsApp
+- JavaScript + HTML + CSS: Frontend
+
+## Licencia
+
+ISC
