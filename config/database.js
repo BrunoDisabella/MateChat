@@ -5,13 +5,15 @@ require('dotenv').config();
 const connectDB = async () => {
   try {
     // Si no hay URI de MongoDB, usar una base de datos en memoria para desarrollo
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/matechat';
+    const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://brunodisabella:VS0IXOXufR1ZGVOn@cluster0.mongodb.net/matechat';
     
-    console.log(`Intentando conectar a MongoDB con URI: ${mongoURI}`);
+    console.log(`Intentando conectar a MongoDB con URI: ${mongoURI.replace(/\/\/[^:]+:[^@]+@/, '//****:****@')}`); // Ocultar credenciales en logs
     
     const conn = await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
-      useUnifiedTopology: true
+      useUnifiedTopology: true,
+      retryWrites: true,
+      w: 'majority'
     });
     
     console.log(`MongoDB Conectado: ${conn.connection.host}`);

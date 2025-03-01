@@ -38,13 +38,16 @@ class WhatsAppService {
     this.client.on('qr', (qr) => {
       console.log('Código QR generado. Listo para escanear.');
       this.qrCode = qr;
-      qrcode.toDataURL(qr, (err, url) => {
+      
+      // Emitir el código QR a todos los clientes conectados
+      qrcode.toDataURL(qr, { errorCorrectionLevel: 'H' }, (err, url) => {
         if (err) {
           console.error('Error al generar código QR:', err);
           return;
         }
+        console.log('Código QR generado correctamente');
         this.io.emit('qrCode', url);
-        console.log('Código QR generado y enviado al cliente');
+        console.log('Código QR enviado al cliente');
       });
     });
 

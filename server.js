@@ -49,10 +49,14 @@ io.on('connection', (socket) => {
   socket.emit('whatsappStatus', { status: status.isConnected ? 'connected' : 'disconnected' });
   
   // Si el código QR está disponible, enviarlo
-  if (whatsappService.qrCode) {
-    require('qrcode').toDataURL(whatsappService.qrCode, (err, url) => {
+  if (whatsappService.qrCode && !status.isConnected) {
+    console.log('Enviando código QR al nuevo cliente');
+    require('qrcode').toDataURL(whatsappService.qrCode, { errorCorrectionLevel: 'H' }, (err, url) => {
       if (!err) {
+        console.log('Código QR enviado al cliente recién conectado');
         socket.emit('qrCode', url);
+      } else {
+        console.error('Error al generar código QR para cliente:', err);
       }
     });
   }

@@ -52,8 +52,16 @@
         const qrcodeContainer = document.getElementById('qrcode-container');
         const connectionSuccess = document.getElementById('connection-success');
 
+        // Manejar la recepción del código QR
         socket.on('qrCode', (qrCodeDataUrl) => {
-            qrcodeElement.innerHTML = `<img src="${qrCodeDataUrl}" alt="WhatsApp QR Code">`;
+            console.log("Código QR recibido del servidor");
+            qrcodeElement.innerHTML = `<img src="${qrCodeDataUrl}" alt="WhatsApp QR Code" style="max-width:100%;">`;
+        });
+        
+        // Solicitar explícitamente el código QR al conectar
+        socket.on('connect', () => {
+            console.log("Socket conectado, solicitando estado actual");
+            // El servidor enviará el QR si está disponible
         });
 
         socket.on('whatsappStatus', (data) => {
