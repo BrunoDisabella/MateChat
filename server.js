@@ -8,13 +8,16 @@ const WhatsAppService = require('./src/services/whatsappService');
 const whatsappController = require('./src/controllers/whatsappController');
 require('dotenv').config();
 
-// Initialize Express app
+// Inicializar Express app
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Connect to MongoDB
-connectDB();
+// Conectar a MongoDB (no bloquea si falla)
+connectDB().catch(err => {
+  console.warn('Advertencia: No se pudo conectar a MongoDB. La aplicación continuará pero sin almacenamiento persistente.');
+  console.error('Error de conexión:', err.message);
+});
 
 // Middleware
 app.use(cors());
@@ -22,30 +25,30 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Set view engine
+// Configurar el motor de vistas
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Initialize WhatsApp service
+// Inicializar servicio de WhatsApp
 const whatsappService = new WhatsAppService(io);
 whatsappService.initialize();
 
-// Set WhatsApp service in the controller
+// Establecer servicio de WhatsApp en el controlador
 whatsappController.setWhatsAppService(whatsappService);
 
-// Routes
+// Rutas
 app.use('/', require('./src/routes/web'));
 app.use('/api', require('./src/routes/api'));
 
-// Socket.io connection
+// Conexión Socket.io
 io.on('connection', (socket) => {
-  console.log('New client connected');
+  console.log('Nuevo cliente conectado');
   
-  // Send current WhatsApp status
+  // Enviar estado actual de WhatsApp
   const status = whatsappService.getStatus();
   socket.emit('whatsappStatus', { status: status.isConnected ? 'connected' : 'disconnected' });
   
-  // If QR code is available, send it
+  // Si el código QR está disponible, enviarlo
   if (whatsappService.qrCode) {
     require('qrcode').toDataURL(whatsappService.qrCode, (err, url) => {
       if (!err) {
@@ -55,13 +58,13 @@ io.on('connection', (socket) => {
   }
   
   socket.on('disconnect', () => {
-    console.log('Client disconnected');
+    console.log('Cliente desconectado');
   });
 });
 
-// Start server
+// Iniciar servidor
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Visit http://localhost:${PORT} to connect WhatsApp`);
+  console.log(`Servidor en ejecución en el puerto ${PORT}`);
+  console.log(`Visita http://localhost:${PORT} para conectar WhatsApp`);
 });

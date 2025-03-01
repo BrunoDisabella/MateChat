@@ -10,6 +10,7 @@ class WhatsAppService {
     this.client = null;
     this.qrCode = null;
     this.isConnected = false;
+    this.messageMemory = []; // Para almacenar mensajes en memoria si MongoDB no está disponible
   }
 
   initialize() {
@@ -31,49 +32,57 @@ class WhatsAppService {
     });
 
     this.client.on('qr', (qr) => {
+      console.log('Código QR generado. Listo para escanear.');
       this.qrCode = qr;
       qrcode.toDataURL(qr, (err, url) => {
         if (err) {
-          console.error('Error generating QR code:', err);
+          console.error('Error al generar código QR:', err);
           return;
         }
         this.io.emit('qrCode', url);
-        console.log('QR code generated');
+        console.log('Código QR generado y enviado al cliente');
       });
     });
 
     this.client.on('ready', () => {
       this.isConnected = true;
       this.io.emit('whatsappStatus', { status: 'connected' });
-      console.log('WhatsApp client is ready!');
+      console.log('¡Cliente de WhatsApp listo!');
     });
 
     this.client.on('disconnected', () => {
       this.isConnected = false;
       this.io.emit('whatsappStatus', { status: 'disconnected' });
-      console.log('WhatsApp client disconnected');
+      console.log('Cliente de WhatsApp desconectado');
     });
 
     this.client.on('message', async (message) => {
-      // Ignore messages sent by the current user
+      // Ignorar mensajes enviados por el usuario actual
       if (message.fromMe) return;
 
       try {
-        // Save message to database
-        const newMessage = new Message({
+        // Crear objeto de mensaje
+        const newMessage = {
           messageId: message.id._serialized,
           phoneNumber: message.from,
           content: message.body,
           timestamp: new Date(),
           responseStatus: 'Pending'
-        });
+        };
         
-        await newMessage.save();
-        console.log('Message saved to database:', newMessage);
+        // Intentar guardar en MongoDB, si falla almacenar en memoria
+        try {
+          const dbMessage = new Message(newMessage);
+          await dbMessage.save();
+          console.log('Mensaje guardado en MongoDB:', newMessage);
+        } catch (dbError) {
+          console.warn('No se pudo guardar en MongoDB, guardando en memoria:', dbError.message);
+          this.messageMemory.push(newMessage);
+        }
         
-        // Emit the message to connected clients
+        // Emitir mensaje a los clientes conectados
         this.io.emit('newMessage', {
-          id: newMessage._id,
+          id: newMessage.messageId,
           messageId: newMessage.messageId,
           phoneNumber: newMessage.phoneNumber,
           content: newMessage.content,
@@ -81,50 +90,68 @@ class WhatsAppService {
           responseStatus: newMessage.responseStatus
         });
 
-        // Forward message to N8N webhook
-        try {
-          await axios.post(process.env.N8N_WEBHOOK_URL, {
-            messageId: newMessage.messageId,
-            phoneNumber: newMessage.phoneNumber,
-            content: newMessage.content,
-            timestamp: newMessage.timestamp
-          });
-          console.log('Message forwarded to N8N');
-        } catch (error) {
-          console.error('Error forwarding message to N8N:', error);
+        // Enviar mensaje al webhook de N8N
+        if (process.env.N8N_WEBHOOK_URL) {
+          try {
+            await axios.post(process.env.N8N_WEBHOOK_URL, {
+              messageId: newMessage.messageId,
+              phoneNumber: newMessage.phoneNumber,
+              content: newMessage.content,
+              timestamp: newMessage.timestamp
+            });
+            console.log('Mensaje enviado a N8N');
+          } catch (error) {
+            console.error('Error al enviar mensaje a N8N:', error.message);
+          }
+        } else {
+          console.log('No hay URL de webhook de N8N configurada');
         }
       } catch (error) {
-        console.error('Error processing incoming message:', error);
+        console.error('Error al procesar mensaje entrante:', error);
       }
     });
 
-    this.client.initialize();
+    console.log('Inicializando cliente WhatsApp...');
+    this.client.initialize().catch(err => {
+      console.error('Error al inicializar WhatsApp client:', err);
+    });
   }
 
   async sendMessage(to, content) {
     if (!this.isConnected) {
-      throw new Error('WhatsApp client is not connected');
+      throw new Error('El cliente de WhatsApp no está conectado');
     }
 
     try {
-      // Format the number to ensure it's in the correct format
+      // Formatear el número para asegurar que está en el formato correcto
       const formattedNumber = to.includes('@c.us') ? to : `${to}@c.us`;
       
-      // Send the message
+      // Enviar el mensaje
       const response = await this.client.sendMessage(formattedNumber, content);
       
-      // Update the message status in the database
+      // Actualizar el estado del mensaje en la base de datos
       if (response) {
-        await Message.findOneAndUpdate(
-          { phoneNumber: formattedNumber, responseStatus: 'Pending' },
-          { responseStatus: 'Responded' },
-          { sort: { timestamp: -1 } }
-        );
+        try {
+          await Message.findOneAndUpdate(
+            { phoneNumber: formattedNumber, responseStatus: 'Pending' },
+            { responseStatus: 'Responded' },
+            { sort: { timestamp: -1 } }
+          );
+        } catch (error) {
+          console.warn('No se pudo actualizar el mensaje en MongoDB, actualizando en memoria');
+          // Actualizar en la memoria si MongoDB no está disponible
+          const messageIndex = this.messageMemory.findIndex(
+            m => m.phoneNumber === formattedNumber && m.responseStatus === 'Pending'
+          );
+          if (messageIndex !== -1) {
+            this.messageMemory[messageIndex].responseStatus = 'Responded';
+          }
+        }
       }
       
       return response;
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error al enviar mensaje:', error);
       throw error;
     }
   }
