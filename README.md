@@ -1,81 +1,127 @@
-# MateChat - Integración WhatsApp
+# MateChat - WhatsApp Integration
 
-Esta aplicación permite integrar WhatsApp mediante escaneo QR y ofrece una interfaz web responsive optimizada para dispositivos móviles para enviar/recibir mensajes.
+MateChat is a web application that connects to WhatsApp Web via QR code scanning, captures messages in real-time, stores them in MongoDB, and allows automated responses through N8N integration.
 
-## Características
+## Features
 
-- Interfaz responsive adaptada tanto para escritorio como para dispositivos móviles
-- Sistema de etiquetado para organizar conversaciones
-- Integración con webhooks para recibir y enviar mensajes
-- API para integración con aplicaciones externas
-- Soporte para enviar y recibir diferentes tipos de medios (imágenes, audio, video)
-- Publicación de estados desde la interfaz
+- WhatsApp Web connection via QR code scanning
+- Real-time message capture and storage
+- WebSocket communication for live updates
+- MongoDB integration for message storage
+- N8N webhook integration for chatbot automation
+- Easy deployment to Railway
 
-## Requisitos previos
+## Prerequisites
 
-- Node.js instalado (versión 14 o superior)
-- Google Chrome instalado (para entorno de desarrollo)
-- Una cuenta de WhatsApp activa en tu teléfono
+- Node.js 16 or higher
+- MongoDB Atlas account or local MongoDB installation
+- N8N instance for chatbot automation
+- Railway account for deployment (optional)
 
-## Instalación local
+## Local Setup
 
-1. Clona o descarga este repositorio
-2. Ejecuta `npm install` para instalar dependencias
-3. Configura la ruta a Chrome ejecutando: `node setup-chrome-path.js`
-4. Inicia el servidor: `node server.js`
-5. Abre tu navegador en: http://localhost:3000
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/matechat.git
+   cd matechat
+   ```
 
-## ⚠️ Importante para Windows: Ejecutar en Windows Nativo ⚠️
+2. Install dependencies:
+   ```
+   npm install
+   ```
 
-Para que el código QR funcione correctamente en Windows, **debes ejecutar la aplicación en Windows nativo**, no en WSL:
+3. Set up environment variables:
+   Create a `.env` file in the root directory with the following variables:
+   ```
+   PORT=3000
+   MONGODB_URI=your_mongodb_connection_string
+   N8N_WEBHOOK_URL=your_n8n_webhook_url
+   ```
 
-1. Abre la carpeta donde está instalada la aplicación
-2. Ejecuta el archivo `matechat-windows.bat` haciendo doble clic
-3. Sigue las instrucciones en pantalla para escanear el código QR
+4. Start the application:
+   ```
+   npm start
+   ```
 
-## Despliegue en Railway
+5. Access the application:
+   Open your browser and navigate to `http://localhost:3000`
 
-Este proyecto está preparado para ser desplegado fácilmente en [Railway](https://railway.app/):
+## Connecting WhatsApp
 
-1. Crear un nuevo proyecto en Railway
-2. Conectar tu repositorio de GitHub
-3. Configurar las variables de entorno necesarias:
-   - `PORT` (opcional, Railway lo asigna automáticamente)
-   - `NODE_ENV=production`
-   - `WEBHOOK_URL` (opcional, tu URL de webhook)
-   - `WEBHOOK_METHOD` (opcional, por defecto POST)
-   - `API_KEY` (opcional, para autenticación de API)
-4. Railway detectará automáticamente el proyecto Node.js y lo desplegará
+1. Open the MateChat application in your browser
+2. Scan the QR code with your WhatsApp mobile app:
+   - Open WhatsApp on your phone
+   - Go to Settings/Menu > WhatsApp Web
+   - Scan the QR code displayed on the screen
+3. Once connected, you can start receiving messages in the chat interface
 
-## API
+## N8N Integration
 
-MateChat ofrece una API REST para integración con aplicaciones externas:
+1. Set up a new workflow in N8N
+2. Add a webhook node as the trigger:
+   - Method: POST
+   - Path: `/whatsapp`
+   - Save the webhook URL
 
-- `POST /api/messages`: Envía un mensaje
-  - Requiere: `to` (número con código de país), `message` (texto)
-  - Opcional: `media` (objeto con URL del archivo)
+3. Add your automation logic in N8N:
+   - Process incoming messages
+   - Generate responses based on message content
+   - Send responses back to MateChat
 
-- `GET /api/chats`: Obtiene la lista de conversaciones
-- `GET /api/chats/:chatId/messages`: Obtiene mensajes de una conversación
+4. Add an HTTP Request node to send responses:
+   - Method: POST
+   - URL: `http://your-matechat-url/api/send-message`
+   - Body:
+     ```json
+     {
+       "phoneNumber": "{{$node[\"Webhook\"].json[\"phoneNumber\"]}}",
+       "content": "Your automated response here"
+     }
+     ```
 
-## Solución de problemas
+5. Update your `.env` file with the N8N webhook URL:
+   ```
+   N8N_WEBHOOK_URL=your_n8n_webhook_url
+   ```
 
-### Error: "Failed to launch the browser process!"
+## Deployment to Railway
 
-Este error ocurre cuando la aplicación no puede encontrar o iniciar Google Chrome. Soluciones:
+1. Create a new Railway project
+2. Connect your GitHub repository
+3. Set the environment variables:
+   - `MONGODB_URI`: Your MongoDB connection string
+   - `N8N_WEBHOOK_URL`: Your N8N webhook URL
+4. Deploy the application
 
-1. Asegúrate de que Google Chrome esté instalado en tu sistema
-2. Ejecuta `matechat-windows.bat` para detectar automáticamente la ruta de Chrome
-3. Edita manualmente el archivo `chrome-config.js` para apuntar a la ubicación correcta de chrome.exe
+Railway will automatically build and deploy your application using the Dockerfile.
 
-### No aparece el código QR
+## Architecture
 
-1. Verifica que Chrome se esté ejecutando correctamente
-2. Reinicia la aplicación completamente
-3. Verifica que no haya otro proceso de la aplicación ejecutándose
+```
+┌─────────────┐      ┌──────────────┐      ┌───────────┐
+│  WhatsApp   │◄────►│   MateChat   │◄────►│  MongoDB  │
+│   Mobile    │      │    Server    │      │           │
+└─────────────┘      └──────┬───────┘      └───────────┘
+                            │
+                            │
+                            ▼
+                     ┌──────────────┐
+                     │     N8N      │
+                     │  Automation  │
+                     └──────────────┘
+```
 
-## Notas importantes
+## Technologies Used
 
-- No cierres la ventana de Chrome mientras la aplicación esté en uso localmente
-- Solo se puede tener una sesión de WhatsApp Web activa por número de teléfono
-- La primera vez que escanees el código QR, es posible que debas confirmar el inicio de sesión en tu teléfono
+- Node.js and Express for the backend
+- whatsapp-web.js for WhatsApp integration
+- Socket.IO for real-time communication
+- MongoDB for message storage
+- EJS for server-side rendering
+- Docker for containerization
+- Railway for deployment
+
+## License
+
+This project is licensed under the MIT License.

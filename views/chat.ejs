@@ -1,220 +1,55 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MateChat</title>
-  <link rel="stylesheet" href="/css/styles.css">
-  <link rel="icon" href="/images/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MateChat - Message Dashboard</title>
+    <link rel="stylesheet" href="/css/styles.css">
 </head>
-<body class="chat-page">
-  <div class="container">
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <div class="user-profile">
-          <div class="avatar">
-            <img src="/images/default-avatar.png" alt="Profile">
-          </div>
-        </div>
-        <div class="header-actions">
-          <button class="icon-btn status-btn"><i class="status-icon"></i></button>
-          <button class="icon-btn tag-btn"><i class="tag-icon"></i></button>
-          <button class="icon-btn new-chat-btn"><i class="new-chat-icon"></i></button>
-          <button class="icon-btn menu-btn"><i class="menu-icon"></i></button>
-        </div>
-      </div>
-      
-      <div class="search-container">
-        <div class="search-box">
-          <i class="search-icon"></i>
-          <input type="text" id="search-input" placeholder="Buscar o empezar un chat nuevo">
-          <i class="filter-icon"></i>
-        </div>
-      </div>
-      
-      <div class="chat-list" id="chat-list">
-        <!-- Chat list items will be populated here -->
-        <div class="empty-list">
-          <p>Cargando chats...</p>
-        </div>
-      </div>
-      
-      <div class="sidebar-settings">
-        <button class="btn settings-btn" id="open-settings">Configuración</button>
-      </div>
-    </div>
-    
-    <div class="main-content">
-      <div class="welcome-screen" id="welcome-screen">
-        <div class="welcome-illustration">
-          <img src="/images/whatsapp-devices.svg" alt="WhatsApp Web">
-        </div>
-        <h1>MateChat</h1>
-        <p>Envía y recibe mensajes sin necesidad de tener tu teléfono conectado.</p>
-        <p class="small">Usa WhatsApp en hasta 4 dispositivos vinculados y 1 teléfono a la vez.</p>
-        <p class="encryption-notice">
-          <span class="lock-icon">🔒</span>
-          Tus mensajes personales están cifrados de extremo a extremo.
-        </p>
-      </div>
-      
-      <div class="chat-window hidden" id="chat-window">
-        <div class="chat-header">
-          <div class="back-button" id="back-to-chats">&#8592;</div>
-          <div class="chat-contact">
-            <div class="avatar">
-              <img src="/images/default-avatar.png" alt="Contact" id="chat-contact-avatar">
+<body>
+    <div class="container">
+        <header>
+            <h1>MateChat</h1>
+            <div class="status-bar">
+                <div class="whatsapp-status">
+                    WhatsApp: <span id="connection-status">Checking...</span>
+                </div>
+                <a href="/" class="button small">Home</a>
             </div>
-            <div class="contact-info">
-              <h2 class="contact-name" id="chat-contact-name">Nombre del contacto</h2>
-              <p class="contact-status" id="chat-contact-status">en línea</p>
+        </header>
+        
+        <main class="chat-container">
+            <div class="chat-sidebar">
+                <div class="chat-contacts">
+                    <h3>Recent Contacts</h3>
+                    <ul id="contacts-list">
+                        <li class="loading">Loading contacts...</li>
+                    </ul>
+                </div>
             </div>
-          </div>
-          <div class="chat-actions">
-            <button class="icon-btn search-chat-btn"><i class="search-icon"></i></button>
-            <button class="icon-btn more-options-btn" id="chat-options-btn"><i class="more-icon"></i></button>
-          </div>
-        </div>
-        
-        <div class="messages-container" id="messages-container">
-          <!-- Messages will be populated here -->
-        </div>
-        
-        <div class="message-composer">
-          <div class="composer-actions">
-            <button class="icon-btn emoji-btn"><i class="emoji-icon"></i></button>
-            <button class="icon-btn attach-btn" id="file-selector-btn"><i class="attach-icon"></i></button>
-            <button class="icon-btn mic-btn" id="record-audio-btn"><i class="mic-icon"></i></button>
-            <input type="file" id="file-selector" class="hidden" accept="image/*,audio/*,video/*,application/*">
-          </div>
-          <div class="message-input">
-            <input type="text" id="message-text" placeholder="Escribe un mensaje">
-          </div>
-          <button class="icon-btn send-btn" id="send-message"><i class="send-icon"></i></button>
-        </div>
-        
-        <!-- Indicador de grabación de audio -->
-        <div class="audio-recording hidden" id="audio-recording">
-          <div class="recording-indicator">
-            <span class="recording-icon">🎙️</span>
-            <span class="recording-time" id="recording-time">00:00</span>
-          </div>
-          <div class="recording-actions">
-            <button class="cancel-recording-btn" id="cancel-recording">Cancelar</button>
-            <button class="stop-recording-btn" id="stop-recording">Enviar</button>
-          </div>
-        </div>
-        
-        <!-- Vista previa del archivo seleccionado -->
-        <div class="file-preview hidden" id="file-preview">
-          <div class="file-preview-header">
-            <span id="file-preview-name">Archivo seleccionado</span>
-            <button class="close-preview-btn" id="cancel-file">×</button>
-          </div>
-          <div class="file-preview-content" id="file-preview-content">
-            <!-- Aquí se mostrará la vista previa del archivo -->
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Settings Modal -->
-    <div class="modal hidden" id="settings-modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>Configuración</h2>
-          <button class="close-btn" id="close-settings">&times;</button>
-        </div>
-        <div class="modal-body">
-          <h3>Etiquetas de Chat</h3>
-          <div class="form-group" id="tags-container">
-            <div id="tag-list">
-              <!-- Las etiquetas se cargarán dinámicamente aquí -->
-            </div>
-            <button class="btn save-btn" id="add-new-tag">Nueva Etiqueta</button>
-          </div>
-          
-          <h3>Configuración de Webhook</h3>
-          <div class="form-group">
-            <label for="webhook-url">URL del Webhook:</label>
-            <input type="text" id="webhook-url" placeholder="https://ejemplo.com/webhook">
-            <div class="webhook-method">
-              <label for="webhook-method">Método HTTP:</label>
-              <select id="webhook-method">
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="PATCH">PATCH</option>
-                <option value="DELETE">DELETE</option>
-                <option value="HEAD">HEAD</option>
-              </select>
-            </div>
-            <button class="btn save-btn" id="save-webhook">Guardar</button>
-          </div>
-          
-          <h3>Configuración de API</h3>
-          <div class="form-group">
-            <label>Endpoint API:</label>
-            <code class="api-endpoint" id="api-endpoint">http://localhost:3000/api/messages</code>
-            <button class="btn copy-btn" id="copy-api-endpoint">Copiar</button>
             
-            <p class="api-description">
-              Este endpoint permite que aplicaciones externas envíen mensajes a través 
-              de WhatsApp utilizando solicitudes HTTP. Para usar esta API, envíe solicitudes 
-              POST con el siguiente formato:
-            </p>
-            
-            <pre class="api-example">
-{
-  "to": "5511999999999",  // Número con código de país
-  "message": "Hola desde API externa",
-  "media": {
-    "url": "https://ejemplo.com/imagen.jpg"  // Opcional
-  }
-}
-            </pre>
-            
-            <div class="api-settings">
-              <label for="api-key">Clave API (opcional):</label>
-              <input type="text" id="api-key" placeholder="Dejar vacío para desactivar autenticación">
-              <button class="btn save-btn" id="save-api-settings">Guardar</button>
+            <div class="chat-main">
+                <div class="chat-messages">
+                    <div id="messages-container">
+                        <p class="select-contact">Select a contact to view messages</p>
+                    </div>
+                </div>
+                
+                <div class="chat-input" id="chat-input-container" style="display: none;">
+                    <form id="message-form">
+                        <input type="text" id="message-input" placeholder="Type a message..." />
+                        <button type="submit" id="send-button">Send</button>
+                    </form>
+                </div>
             </div>
-          </div>
-          
-          <h3>Estado de Conexión</h3>
-          <div class="connection-status">
-            <p>Estado: <span id="connection-status">Conectado</span></p>
-            <button class="btn" id="logout-btn">Cerrar sesión</button>
-          </div>
-        </div>
-      </div>
+        </main>
+        
+        <footer>
+            <p>&copy; 2025 MateChat - WhatsApp Integration</p>
+        </footer>
     </div>
-    
-    <!-- Modal para editar etiqueta -->
-    <div class="modal hidden" id="tag-edit-modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2 id="tag-modal-title">Nueva Etiqueta</h2>
-          <button class="close-btn" id="close-tag-modal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label for="tag-name">Nombre:</label>
-            <input type="text" id="tag-name" placeholder="Ej: Cliente, Trabajo, Familia">
-          </div>
-          <div class="form-group">
-            <label for="tag-color">Color:</label>
-            <input type="color" id="tag-color" value="#00a884">
-          </div>
-          <input type="hidden" id="tag-id" value="">
-          <button class="btn save-btn" id="save-tag">Guardar</button>
-          <button class="btn" id="delete-tag" style="background-color: var(--danger-color); display: none;">Eliminar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/chat.js"></script>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/chat.js"></script>
 </body>
 </html>

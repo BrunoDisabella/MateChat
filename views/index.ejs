@@ -1,73 +1,87 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inicia sesión en MateChat</title>
-  <link rel="stylesheet" href="/css/styles.css">
-  <link rel="icon" href="/images/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MateChat - WhatsApp Connection</title>
+    <link rel="stylesheet" href="/css/styles.css">
 </head>
-<body class="login-page">
-  <div class="container">
-    <header>
-      <div class="logo">
-        <img src="/images/whatsapp-logo.svg" alt="MateChat">
-        <span>MateChat</span>
-      </div>
-      <div class="disconnect-btn">
-        <a href="#" id="disconnect-btn" class="btn">Desconectar <i class="disconnect-icon"></i></a>
-      </div>
-    </header>
-    
-    <main>
-      <div class="qr-container">
-        <h1>Inicia sesión en MateChat</h1>
-        <p>Envía mensajes privados a tus amigos y familiares a través de WhatsApp en tu navegador.</p>
+<body>
+    <div class="container">
+        <header>
+            <h1>MateChat</h1>
+            <h2>WhatsApp Web Connection</h2>
+        </header>
         
-        <ol class="instructions">
-          <li>Abre WhatsApp en tu teléfono.</li>
-          <li>Toca Menú <span class="menu-icon">⋮</span> en Android o Ajustes <span class="settings-icon">⚙️</span> en iPhone.</li>
-          <li>Toca Dispositivos vinculados y, luego, Vincular un dispositivo.</li>
-          <li>Apunta tu teléfono hacia esta pantalla para escanear el código QR.</li>
-        </ol>
+        <main>
+            <div class="whatsapp-connect">
+                <div id="whatsapp-status">
+                    <p>Status: <span id="connection-status">Disconnected</span></p>
+                </div>
+                
+                <div id="qrcode-container">
+                    <h3>Scan the QR code with WhatsApp to connect</h3>
+                    <div id="qrcode">
+                        <p>Loading QR code...</p>
+                    </div>
+                    <p class="instructions">
+                        1. Open WhatsApp on your phone<br>
+                        2. Tap Menu or Settings and select WhatsApp Web<br>
+                        3. Point your phone to this screen to capture the code
+                    </p>
+                </div>
+                
+                <div id="connection-success" style="display: none;">
+                    <h3>WhatsApp Connected!</h3>
+                    <p>Your WhatsApp is now connected to MateChat.</p>
+                    <a href="/chat" class="button">Go to Chat Interface</a>
+                </div>
+            </div>
+        </main>
         
-        <div id="qr-code" class="qr-code">
-          <div class="loading">Cargando código QR...</div>
-        </div>
-        
-        <div id="webhook-panel" class="webhook-panel hidden">
-          <h3>Integración con Webhook</h3>
-          <div class="form-group">
-            <label for="webhook-url">URL del Webhook:</label>
-            <input type="text" id="webhook-url" placeholder="https://tu-webhook.com/whatsapp">
-            <button id="save-webhook" class="btn">Guardar</button>
-          </div>
-          <div class="webhook-status">
-            <p>Estado actual: <span id="webhook-status">No configurado</span></p>
-          </div>
-        </div>
-        
-        <div class="checkbox-container">
-          <input type="checkbox" id="keep-session" checked>
-          <label for="keep-session">Mantener la sesión iniciada en este navegador</label>
-          <span class="info-icon">ⓘ</span>
-        </div>
-        
-        <div class="alternative-login">
-          <a href="#" id="phone-login">Iniciar sesión con número de teléfono</a>
-        </div>
-      </div>
-    </main>
-    
-    <footer>
-      <p class="encryption-notice">
-        <span class="lock-icon">🔒</span>
-        Tus mensajes personales están cifrados de extremo a extremo
-      </p>
-    </footer>
-  </div>
-  
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/qrcode.js"></script>
+        <footer>
+            <p>&copy; 2025 MateChat - WhatsApp Integration</p>
+        </footer>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const qrcodeElement = document.getElementById('qrcode');
+        const connectionStatus = document.getElementById('connection-status');
+        const qrcodeContainer = document.getElementById('qrcode-container');
+        const connectionSuccess = document.getElementById('connection-success');
+
+        socket.on('qrCode', (qrCodeDataUrl) => {
+            qrcodeElement.innerHTML = `<img src="${qrCodeDataUrl}" alt="WhatsApp QR Code">`;
+        });
+
+        socket.on('whatsappStatus', (data) => {
+            if (data.status === 'connected') {
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.className = 'connected';
+                qrcodeContainer.style.display = 'none';
+                connectionSuccess.style.display = 'block';
+            } else {
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.className = 'disconnected';
+                qrcodeContainer.style.display = 'block';
+                connectionSuccess.style.display = 'none';
+            }
+        });
+
+        // Check initial status
+        fetch('/api/whatsapp-status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.isConnected) {
+                    connectionStatus.textContent = 'Connected';
+                    connectionStatus.className = 'connected';
+                    qrcodeContainer.style.display = 'none';
+                    connectionSuccess.style.display = 'block';
+                }
+            })
+            .catch(error => console.error('Error fetching WhatsApp status:', error));
+    </script>
 </body>
 </html>

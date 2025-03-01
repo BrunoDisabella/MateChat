@@ -1,53 +1,55 @@
 @echo off
-setlocal enabledelayedexpansion
-
-echo === MateChat - Configuración inicial ===
+echo MateChat - Setup Assistant
+echo ===========================
 echo.
-echo Buscando Google Chrome en Windows...
+echo This script will help you set up MateChat on your Windows system.
+echo.
 
-set "CHROME_PATH="
-
-:: Verificar ubicaciones comunes de Chrome
-for %%A in (
-    "C:\Program Files\Google\Chrome\Application\chrome.exe"
-    "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-    "%USERPROFILE%\AppData\Local\Google\Chrome\Application\chrome.exe"
-) do (
-    if exist "%%~A" (
-        set "CHROME_PATH=%%~A"
-        echo Chrome encontrado en: %%A
-        goto FOUND
-    )
+:: Check if Node.js is installed
+WHERE node >nul 2>nul
+IF %ERRORLEVEL% NEQ 0 (
+    echo Node.js is not installed or not in PATH.
+    echo Please install Node.js (version 16 or higher) from https://nodejs.org/
+    echo and run this script again.
+    pause
+    exit /b
 )
 
-:FOUND
-if "%CHROME_PATH%"=="" (
-    echo ❌ Chrome no encontrado. Asegúrate de que está instalado.
-    exit /b 1
-)
-
-:: Guardar la ruta en chrome-config.js con formato adecuado para JavaScript
-echo module.exports = { > chrome-config.js
-echo   chromePath: "%CHROME_PATH%", >> chrome-config.js
-echo   detected: "%DATE%" >> chrome-config.js
-echo }; >> chrome-config.js
-
-echo ✅ Configuración guardada en chrome-config.js
+:: Check Node.js version
+FOR /F "tokens=* USEBACKQ" %%F IN (`node -v`) DO SET node_version=%%F
+echo Detected Node.js version: %node_version%
 echo.
-echo === Iniciando MateChat ===
-echo.
-echo Instalando dependencias...
+
+:: Install dependencies
+echo Installing dependencies...
 call npm install
+IF %ERRORLEVEL% NEQ 0 (
+    echo Failed to install dependencies.
+    pause
+    exit /b
+)
+echo Dependencies installed successfully.
 echo.
-echo Iniciando servidor...
-echo.
-echo IMPORTANTE: Para que funcione correctamente:
-echo 1. Escanea el código QR con tu teléfono cuando aparezca
-echo 2. Se abrirá una ventana de Chrome para la autenticación
-echo 3. No cierres esa ventana durante el uso de MateChat
-echo.
-echo Presiona cualquier tecla para continuar...
-pause > nul
 
-node server.js
-exit /b 0
+:: Prompt for MongoDB URI
+set /p mongodb_uri=Enter your MongoDB URI (or press Enter to use a local MongoDB): 
+if "%mongodb_uri%"=="" set mongodb_uri=mongodb://localhost:27017/matechat
+
+:: Prompt for N8N webhook URL
+set /p n8n_webhook=Enter your N8N webhook URL (or press Enter to configure later): 
+
+:: Create .env file
+echo Creating .env file...
+echo PORT=3000> .env
+echo MONGODB_URI=%mongodb_uri%>> .env
+if not "%n8n_webhook%"=="" echo N8N_WEBHOOK_URL=%n8n_webhook%>> .env
+
+echo.
+echo Setup completed successfully!
+echo.
+echo To start MateChat, run:
+echo    npm start
+echo.
+echo Or use the matechat-windows.bat file.
+echo.
+pause

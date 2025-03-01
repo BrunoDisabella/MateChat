@@ -1,57 +1,63 @@
-FROM node:18-bullseye-slim
+FROM node:18
 
-# Instalar solo lo esencial para Chrome
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-      wget \
-      gnupg \
-      procps \
-      ca-certificates \
-      fonts-liberation \
-      libasound2 \
-      libatk-bridge2.0-0 \
-      libatk1.0-0 \
-      libatspi2.0-0 \
-      libcups2 \
-      libdbus-1-3 \
-      libdrm2 \
-      libgbm1 \
-      libgtk-3-0 \
-      libnspr4 \
-      libnss3 \
-      libxcomposite1 \
-      libxdamage1 \
-      libxfixes3 \
-      libxkbcommon0 \
-      libxrandr2 \
-      xdg-utils \
-    && mkdir -p /etc/apt/keyrings \
-    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /etc/apt/keyrings/google.gpg \
-    && chmod 644 /etc/apt/keyrings/google.gpg \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-      google-chrome-stable \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Install necessary dependencies for Puppeteer
+RUN apt-get update && apt-get install -y \
+    gconf-service \
+    libasound2 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libc6 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libexpat1 \
+    libfontconfig1 \
+    libgcc1 \
+    libgconf-2-4 \
+    libgdk-pixbuf2.0-0 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libstdc++6 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxrandr2 \
+    libxrender1 \
+    libxss1 \
+    libxtst6 \
+    ca-certificates \
+    fonts-liberation \
+    libappindicator1 \
+    libnss3 \
+    lsb-release \
+    xdg-utils \
+    wget
 
-WORKDIR /app
+# Create app directory
+WORKDIR /usr/src/app
 
-# Evitar que Puppeteer descargue Chromium
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
-ENV NODE_ENV=production
-ENV PORT=3000
-
-# Instalar dependencias de producción
+# Install app dependencies
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copiar código fuente
+# Bundle app source
 COPY . .
 
-# Exponer puerto
+# Create and set permissions for .wwebjs_auth directory
+RUN mkdir -p .wwebjs_auth && chmod -R 777 .wwebjs_auth
+RUN mkdir -p .wwebjs_cache && chmod -R 777 .wwebjs_cache
+
+# Expose the port the app runs on
 EXPOSE 3000
 
-# Iniciar la aplicación
+# Command to run the app
 CMD ["node", "server.js"]
