@@ -53,9 +53,19 @@ RUN npm install --production
 # Bundle app source
 COPY . .
 
-# Create and set permissions for .wwebjs_auth directory
+# Create and set permissions for WhatsApp Web.js directories
 RUN mkdir -p .wwebjs_auth && chmod -R 777 .wwebjs_auth
 RUN mkdir -p .wwebjs_cache && chmod -R 777 .wwebjs_cache
+# Ensure Puppeteer can run in Railway environment
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+
+# Install Chrome
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
 
 # Expose the port the app runs on
 EXPOSE 3000
