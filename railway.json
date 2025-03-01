@@ -13,12 +13,8 @@
   },
   "volumes": [
     {
-      "path": "./.wwebjs_auth",
-      "name": "wwebjs-auth"
-    },
-    {
-      "path": "./.wwebjs_cache",
-      "name": "wwebjs-cache"
+      "path": "/wwebjs_data",
+      "name": "wwebjs-persistent"
     }
   ]
 }

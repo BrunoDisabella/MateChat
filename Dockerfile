@@ -65,11 +65,16 @@ RUN npm install --production
 # Bundle app source
 COPY . .
 
-# Create and set permissions for WhatsApp Web.js directories
-RUN mkdir -p .wwebjs_auth && chmod -R 777 .wwebjs_auth
-RUN mkdir -p .wwebjs_cache && chmod -R 777 .wwebjs_cache
+# Create and set permissions for WhatsApp Web.js directories - put in persistent volume
+RUN mkdir -p /wwebjs_data/.wwebjs_auth && chmod -R 777 /wwebjs_data/.wwebjs_auth
+RUN mkdir -p /wwebjs_data/.wwebjs_cache && chmod -R 777 /wwebjs_data/.wwebjs_cache
+RUN mkdir -p /wwebjs_data/chrome_profile && chmod -R 777 /wwebjs_data/chrome_profile
 
-# Prevent Chrome lock files issues
+# Create simlinks to the actual locations expected by the app
+RUN ln -s /wwebjs_data/.wwebjs_auth .wwebjs_auth
+RUN ln -s /wwebjs_data/.wwebjs_cache .wwebjs_cache
+
+# Ensure temp directory exists and has right permissions
 RUN mkdir -p /tmp/puppeteer_chrome_profile && chmod -R 777 /tmp/puppeteer_chrome_profile
 
 # Expose the port the app runs on

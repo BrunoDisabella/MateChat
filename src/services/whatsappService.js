@@ -19,22 +19,45 @@ class WhatsAppService {
     console.log('Limpiando sesión anterior...');
     if (this.client) {
       try {
+        // Cerrar adecuadamente el cliente actual
         await this.client.destroy();
         console.log('Cliente cerrado correctamente');
       } catch (err) {
         console.warn('Error al cerrar el cliente:', err);
       }
     }
+    
+    // Resetear estado
     this.client = null;
     this.qrCode = null;
     this.isConnected = false;
+    
     console.log('Sesión limpiada correctamente');
     return true;
   }
   
-  initialize() {
+  // Verificar si hay una sesión existente antes de crear una nueva
+  async checkExistingSession() {
+    try {
+      // Verificar si existen archivos de sesión
+      console.log('Verificando sesión existente en: /wwebjs_data/.wwebjs_auth/matechat-primary');
+      
+      // Esto no lo podemos hacer de forma confiable en Railway, así que solo reportamos
+      console.log('Asumiendo que hay datos de sesión persistentes');
+      
+      return true;
+    } catch (error) {
+      console.log('Error al verificar sesión existente:', error);
+      return false;
+    }
+  }
+  
+  async initialize() {
     this.connectionAttempts++;
     console.log(`Intento de conexión ${this.connectionAttempts}/${this.maxConnectionAttempts}`);
+    
+    // Verificar si hay una sesión existente
+    await this.checkExistingSession();
     
     // Configuración simple y directa de puppeteer
     const puppeteerOptions = {
@@ -51,17 +74,25 @@ class WhatsAppService {
       ]
     };
     
-    // Usar ID de sesión único para evitar conflictos
-    const sessionId = `session-${Date.now()}`;
-    console.log(`Creando sesión: ${sessionId}`);
+    // Usar siempre el mismo ID de sesión para mantener la persistencia
+    const sessionId = 'matechat-primary';
+    console.log(`Usando sesión persistente: ${sessionId}`);
     
     this.client = new Client({
       authStrategy: new LocalAuth({
-        clientId: sessionId
+        clientId: sessionId,
+        dataPath: '/wwebjs_data/.wwebjs_auth' // Ruta de volumen persistente en Railway
       }),
-      puppeteer: puppeteerOptions,
-      qrMaxRetries: 10, // Aumentar el número de reintentos de QR
-      qrRefreshIntervalMs: 10000 // Refrescar el QR cada 10 segundos
+      puppeteer: {
+        ...puppeteerOptions,
+        // Usar directorio persistente para perfil de Chrome
+        userDataDir: '/wwebjs_data/chrome_profile'
+      },
+      qrMaxRetries: 5, // Reducir para evitar múltiples intentos si hay problemas
+      qrRefreshIntervalMs: 30000, // Aumentar intervalo para dar más tiempo
+      restartOnAuthFail: true,
+      takeoverOnConflict: true,
+      disableSpins: true // Desactivar spinners que pueden causar problemas en algunos entornos
     });
 
     // Manejar evento QR
@@ -196,28 +227,42 @@ class WhatsAppService {
         .then(() => {
           console.log('Cliente WhatsApp inicializado correctamente');
           
-          // Si no recibimos el evento ready en 60 segundos, intentemos verificar el estado manualmente
-          setTimeout(() => {
+          // Establecer intervalo para verificar el estado periódicamente
+          const statusCheckInterval = setInterval(() => {
             if (!this.isConnected) {
-              console.log('No se recibió evento ready, verificando estado manualmente...');
+              console.log('Verificando estado periódicamente...');
               if (this.client && typeof this.client.getState === 'function') {
                 this.client.getState()
                   .then(state => {
-                    console.log('Estado verificado manualmente:', state);
+                    console.log('Estado actual:', state);
                     if (state === 'CONNECTED') {
-                      console.log('Estado conectado detectado manualmente!');
+                      console.log('¡ESTADO CONECTADO DETECTADO MANUALMENTE!');
                       
                       if (!this.isConnected) {
                         this.isConnected = true;
-                        this.io.emit('whatsappStatus', { status: 'connected' });
+                        console.log('Actualizando estado de conexión a CONECTADO');
+                        this.io.emit('whatsappStatus', { 
+                          status: 'connected',
+                          message: 'WhatsApp conectado correctamente (detección manual)'
+                        });
+                        
+                        // Enviar evento de redirección directamente
+                        setTimeout(() => {
+                          console.log('Enviando evento de redirección directa');
+                          this.io.emit('forceRedirect', { url: '/chat?force=true' });
+                        }, 1000);
+                        
                         this.registerMessageListener();
+                        clearInterval(statusCheckInterval); // Detener el intervalo una vez conectado
                       }
                     }
                   })
-                  .catch(err => console.log('Error al verificar estado manualmente:', err));
+                  .catch(err => console.log('Error al verificar estado:', err));
               }
+            } else {
+              clearInterval(statusCheckInterval); // Detener el intervalo si ya estamos conectados
             }
-          }, 60000);
+          }, 10000); // Verificar cada 10 segundos
         })
         .catch(err => {
           console.error('Error al inicializar cliente:', err);
