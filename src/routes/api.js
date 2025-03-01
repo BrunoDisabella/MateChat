@@ -5,7 +5,10 @@ const whatsappApi = require('../services/whatsappApi');
 // Ruta para inicializar la conexión con WhatsApp
 router.post('/whatsapp/initialize', async (req, res) => {
   try {
-    const result = await whatsappApi.initialize();
+    // Comprobar si hay configuración en el body
+    const apiSettings = req.body?.apiSettings;
+    
+    const result = await whatsappApi.initialize(apiSettings);
     if (result.success) {
       res.status(200).json({
         success: true,
@@ -114,6 +117,33 @@ router.get('/whatsapp/status', (req, res) => {
     connected,
     businessInfo
   });
+});
+
+// Ruta para actualizar la configuración de API
+router.post('/whatsapp/config', (req, res) => {
+  try {
+    const { apiSettings } = req.body;
+    
+    if (!apiSettings) {
+      return res.status(400).json({
+        success: false,
+        error: 'No se proporcionó configuración de API'
+      });
+    }
+    
+    // Actualizar configuración
+    whatsappApi.updateConfig(apiSettings);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Configuración actualizada correctamente'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Error al actualizar configuración'
+    });
+  }
 });
 
 module.exports = router;

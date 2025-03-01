@@ -3,31 +3,65 @@ const whatsappConfig = require('../config/whatsapp');
 
 class WhatsAppAPI {
   constructor() {
+    this.config = {
+      apiUrl: whatsappConfig.apiUrl,
+      appId: whatsappConfig.appId,
+      appSecret: whatsappConfig.appSecret,
+      accessToken: whatsappConfig.accessToken,
+      phoneNumberId: whatsappConfig.phoneNumberId,
+      businessAccountId: whatsappConfig.businessAccountId
+    };
+    
     this.axiosInstance = axios.create({
-      baseURL: whatsappConfig.apiUrl,
+      baseURL: this.config.apiUrl,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${whatsappConfig.accessToken}`
+        'Authorization': `Bearer ${this.config.accessToken}`
       }
     });
     
-    this.appId = whatsappConfig.appId;
-    this.appSecret = whatsappConfig.appSecret;
-    this.clientToken = whatsappConfig.clientToken;
-    this.phoneNumberId = whatsappConfig.phoneNumberId;
-    this.businessAccountId = whatsappConfig.businessAccountId;
     this.connected = false;
     this.businessInfo = null;
   }
 
   /**
+   * Actualiza la configuración de la API y reconfigura el cliente axios
+   */
+  updateConfig(apiSettings) {
+    if (!apiSettings) return;
+    
+    // Actualizar configuración
+    this.config = {
+      ...this.config,
+      ...apiSettings
+    };
+    
+    // Recrear instancia de axios con la nueva configuración
+    this.axiosInstance = axios.create({
+      baseURL: this.config.apiUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.accessToken}`
+      }
+    });
+    
+    console.log('Configuración de API actualizada');
+    return true;
+  }
+
+  /**
    * Inicializa la conexión con la API de WhatsApp
    */
-  async initialize() {
+  async initialize(apiSettings) {
     try {
+      // Si se proporciona configuración, actualizarla
+      if (apiSettings) {
+        this.updateConfig(apiSettings);
+      }
+      
       // Verificar que al menos el app ID y access token estén configurados
-      if (!this.appId || !this.clientToken) {
-        throw new Error('Las credenciales básicas (APP_ID, CLIENT_TOKEN) no están configuradas correctamente en el archivo .env');
+      if (!this.config.appId || !this.config.accessToken) {
+        throw new Error('Las credenciales básicas (APP_ID, ACCESS_TOKEN) no están configuradas correctamente');
       }
       
       // Información simulada para pruebas iniciales
@@ -37,13 +71,13 @@ class WhatsAppAPI {
         address: "Ejemplo de dirección",
         description: "Conectando empresas con sus clientes",
         vertical: "UNDEFINED",
-        id: this.appId
+        id: this.config.appId
       };
       
       this.connected = true;
       
       // Intentar obtener información real de la cuenta si phoneNumberId está configurado
-      if (this.phoneNumberId) {
+      if (this.config.phoneNumberId) {
         try {
           const response = await this.getBusinessProfile();
           if (response && response.data) {
@@ -73,12 +107,12 @@ class WhatsAppAPI {
    */
   async getBusinessProfile() {
     try {
-      if (!this.phoneNumberId) {
+      if (!this.config.phoneNumberId) {
         throw new Error('ID de número de teléfono no configurado');
       }
       
       return await this.axiosInstance.get(
-        `/${this.phoneNumberId}/whatsapp_business_profile`
+        `/${this.config.phoneNumberId}/whatsapp_business_profile`
       );
     } catch (error) {
       console.error('Error al obtener perfil de negocio:', error.response?.data || error.message);
@@ -91,12 +125,27 @@ class WhatsAppAPI {
    */
   async sendTextMessage(to, text) {
     try {
-      if (!this.phoneNumberId) {
-        throw new Error('ID de número de teléfono no configurado');
+      if (!this.config.phoneNumberId) {
+        return {
+          success: false,
+          error: 'ID de número de teléfono no configurado. Configúrelo en Ajustes.'
+        };
+      }
+      
+      // En modo demostración, simular envío exitoso
+      if (to.startsWith('new-') || to.startsWith('demo-')) {
+        return {
+          success: true,
+          data: {
+            messaging_product: "whatsapp",
+            contacts: [{ wa_id: to }],
+            messages: [{ id: `demo-${Date.now()}` }]
+          }
+        };
       }
       
       const response = await this.axiosInstance.post(
-        `/${this.phoneNumberId}/messages`,
+        `/${this.config.phoneNumberId}/messages`,
         {
           messaging_product: 'whatsapp',
           recipient_type: 'individual',
@@ -173,8 +222,17 @@ class WhatsAppAPI {
    * Obtiene los mensajes de una conversación específica
    */
   async getMessages(conversationId) {
+    // Para conversaciones recién creadas, mostrar mensajes vacíos
+    if (conversationId.startsWith('new-')) {
+      return {
+        success: true,
+        data: {
+          messages: []
+        }
+      };
+    }
+    
     // Simulación de mensajes para una conversación específica
-    // En una implementación real, esto requeriría acceso a una base de datos
     const conversations = {
       '1234567890': [
         {
@@ -276,6 +334,13 @@ class WhatsAppAPI {
    */
   getBusinessInfo() {
     return this.businessInfo;
+  }
+  
+  /**
+   * Obtiene la configuración actual
+   */
+  getConfig() {
+    return this.config;
   }
 }
 

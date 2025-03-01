@@ -79,7 +79,7 @@ body, html {
   color: white;
 }
 
-.connect-btn {
+.connect-btn, .settings-btn {
   background-color: var(--secondary-color);
   color: white;
   border: none;
@@ -87,6 +87,7 @@ body, html {
   border-radius: 4px;
   cursor: pointer;
   font-weight: bold;
+  margin-left: 8px;
 }
 
 .disconnect-btn {
@@ -98,6 +99,7 @@ body, html {
   cursor: pointer;
   font-weight: bold;
   display: none;
+  margin-left: 8px;
 }
 
 /* Contenido principal */
@@ -128,6 +130,29 @@ body, html {
   border: 1px solid var(--border-color);
   outline: none;
   font-size: 0.9rem;
+}
+
+.new-chat-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  margin: 10px;
+  background-color: var(--secondary-color);
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+.new-chat-button:hover {
+  background-color: var(--dark-color);
+}
+
+.new-chat-button span {
+  font-size: 18px;
+  margin-right: 8px;
 }
 
 .conversations-list {
@@ -317,6 +342,106 @@ body, html {
   background-color: var(--dark-color);
 }
 
+/* Modales */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  overflow: auto;
+}
+
+.modal-content {
+  background-color: white;
+  margin: 5% auto;
+  padding: 0;
+  width: 90%;
+  max-width: 600px;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  animation: modalFadeIn 0.3s;
+}
+
+@keyframes modalFadeIn {
+  from {opacity: 0; transform: translateY(-20px);}
+  to {opacity: 1; transform: translateY(0);}
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 8px 8px 0 0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.close-modal {
+  color: white;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+
+.form-group input, .form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.form-group small {
+  display: block;
+  color: #666;
+  margin-top: 4px;
+  font-size: 0.8rem;
+}
+
+.form-group textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.btn-primary:hover {
+  background-color: var(--dark-color);
+}
+
 /* Estilos responsivos */
 @media (max-width: 768px) {
   .conversations-panel {
@@ -339,6 +464,11 @@ body, html {
   .back-button {
     display: block;
     margin-right: 10px;
+  }
+  
+  .modal-content {
+    width: 95%;
+    margin: 10% auto;
   }
 }
 
