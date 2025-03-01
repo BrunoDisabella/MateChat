@@ -3,62 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MateChat - Conexión de WhatsApp</title>
-    <link rel="stylesheet" href="/css/styles.css">
+    <title>MateChat - Conexión WhatsApp</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            color: #128C7E;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        h2 {
+            color: #075E54;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+        
+        .status-bar {
+            background-color: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
         .status-button {
             display: inline-block;
-            padding: 10px 15px;
-            border-radius: 25px;
+            padding: 8px 15px;
+            border-radius: 20px;
             font-weight: bold;
-            cursor: pointer;
             margin-left: 10px;
-            transition: all 0.3s ease;
+            cursor: pointer;
         }
+        
         .connected {
             background-color: #25D366;
             color: white;
         }
+        
         .disconnected {
             background-color: #E60023;
             color: white;
         }
-        .button {
-            display: inline-block;
-            padding: 12px 25px;
-            background-color: #25D366;
+        
+        .authenticated {
+            background-color: #FFA500;
             color: white;
-            text-decoration: none;
-            border-radius: 25px;
-            font-weight: bold;
+        }
+        
+        #qrcode-container {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        #qrcode {
+            margin: 20px auto;
+            max-width: 300px;
+            height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        #qrcode img {
+            max-width: 90%;
+            max-height: 90%;
+        }
+        
+        .instructions {
+            background-color: #E8F5E9;
+            padding: 15px;
+            border-radius: 5px;
             margin-top: 20px;
-            transition: all 0.3s ease;
+            line-height: 1.8;
         }
-        .button:hover {
-            background-color: #128C7E;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
+        
         #connection-success {
             text-align: center;
             padding: 30px;
-            background-color: #f8f9fa;
+            background-color: #E8F5E9;
             border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
         }
+        
+        .button {
+            display: inline-block;
+            background-color: #128C7E;
+            color: white;
+            padding: 12px 25px;
+            font-size: 1rem;
+            font-weight: bold;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .button:hover {
+            background-color: #075E54;
+        }
+        
+        .manual-button {
+            background-color: #25D366;
+            margin-top: 10px;
+        }
+        
         .loading-spinner {
             display: inline-block;
             width: 20px;
             height: 20px;
-            border: 3px solid rgba(0,0,0,0.1);
+            border: 3px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
             border-top-color: #25D366;
-            animation: spin 1s ease-in-out infinite;
+            animation: spin 1s linear infinite;
             margin-right: 10px;
-            vertical-align: middle;
         }
+        
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            color: #777;
+            font-size: 0.9rem;
         }
     </style>
 </head>
@@ -66,286 +166,190 @@
     <div class="container">
         <header>
             <h1>MateChat</h1>
-            <h2>Conexión de WhatsApp</h2>
+            <h2>Conexión WhatsApp</h2>
         </header>
         
+        <div class="status-bar">
+            <span>Estado:</span>
+            <span id="connection-status" class="status-button disconnected">Desconectado</span>
+        </div>
+        
         <main>
-            <div class="whatsapp-connect">
-                <div id="whatsapp-status">
-                    <p>Estado: <span id="connection-status" class="status-button disconnected">Desconectado</span></p>
+            <div id="qrcode-container">
+                <h3>Escanea este código QR con WhatsApp Business</h3>
+                <div id="qrcode">
+                    <span class="loading-spinner"></span>
+                    <span>Cargando código QR...</span>
                 </div>
-                
-                <div id="qrcode-container">
-                    <h3>Escanea el código QR con WhatsApp para conectar</h3>
-                    <div id="qrcode">
-                        <p><span class="loading-spinner"></span> Cargando código QR...</p>
-                    </div>
-                    <p class="instructions">
-                        1. Abre WhatsApp Business en tu teléfono<br>
-                        2. Toca en Menú o Ajustes y selecciona WhatsApp Web<br>
-                        3. Apunta tu teléfono hacia esta pantalla para capturar el código
-                    </p>
+                <div class="instructions">
+                    <p><strong>Pasos para conectar tu WhatsApp:</strong></p>
+                    <ol>
+                        <li>Abre <strong>WhatsApp Business</strong> en tu teléfono</li>
+                        <li>Toca los tres puntos ⋮ o Ajustes</li>
+                        <li>Selecciona <strong>Dispositivos vinculados</strong></li>
+                        <li>Toca en <strong>Vincular un dispositivo</strong></li>
+                        <li>Escanea el código QR de esta pantalla</li>
+                    </ol>
                 </div>
+            </div>
+            
+            <div id="connection-success" style="display: none;">
+                <h3>¡WhatsApp Conectado Exitosamente!</h3>
+                <p>Tu WhatsApp Business está ahora conectado a MateChat.</p>
+                <p>Redirigiendo a la interfaz de chat...</p>
                 
-                <div id="connection-success" style="display: none;">
-                    <h3>¡WhatsApp Conectado!</h3>
-                    <p>Tu WhatsApp está ahora conectado a MateChat.</p>
-                    <a href="/chat" class="button">Ir a la Interfaz de Chat</a>
-                    
-                    <!-- Botón de redirección explícito adicional -->
-                    <div style="margin-top: 20px; text-align: center;">
-                        <p>Si no eres redirigido automáticamente:</p>
-                        <button id="manual-redirect" style="background-color: #128C7E; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
-                            HACER CLIC AQUÍ PARA IR AL CHAT
-                        </button>
-                    </div>
-                    
-                    <!-- Iframe oculto para forzar la carga de la página de chat -->
-                    <iframe id="preload-frame" src="/chat" style="width:0; height:0; border:0; border:none; position: absolute;"></iframe>
+                <a href="/chat?force=true" class="button">Ir a la Interfaz de Chat</a>
+                
+                <div style="margin-top: 20px;">
+                    <p>Si no eres redirigido automáticamente:</p>
+                    <button id="manual-redirect" class="button manual-button">HACER CLIC AQUÍ PARA IR AL CHAT</button>
                 </div>
             </div>
         </main>
         
         <footer>
-            <p>&copy; 2025 MateChat - Integración de WhatsApp</p>
+            <p>&copy; 2025 MateChat - Integración WhatsApp</p>
         </footer>
     </div>
-
+    
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        // Intentar detectar si ya estamos conectados antes de cargar la página
+        // Comprobar el estado almacenado primero
         if (localStorage.getItem('whatsappConnected') === 'true') {
-            console.log("Estado de conexión encontrado en localStorage, redirigiendo a chat");
-            window.location.href = '/chat';
+            window.location.href = '/chat?force=true';
         }
-    </script>
-    <script>
+        
+        // Inicializar Socket.IO
         const socket = io();
-        const qrcodeElement = document.getElementById('qrcode');
         const connectionStatus = document.getElementById('connection-status');
         const qrcodeContainer = document.getElementById('qrcode-container');
+        const qrcodeElement = document.getElementById('qrcode');
         const connectionSuccess = document.getElementById('connection-success');
-
-        // Manejar la recepción del código QR
+        const manualRedirectButton = document.getElementById('manual-redirect');
+        
+        // Variables de control
+        let redirectTimer = null;
+        let isAuthenticated = false;
+        let isConnected = false;
+        let qrUpdateCount = 0;
+        
+        // Escuchar por nuevos códigos QR
         socket.on('qrCode', (qrCodeDataUrl) => {
-            console.log("Código QR recibido del servidor");
-            // Usar una imagen con estilos especiales
-            qrcodeElement.innerHTML = `
-                <div style="display: flex; justify-content: center; align-items: center; margin: 20px 0;">
-                    <img src="${qrCodeDataUrl}" alt="WhatsApp QR Code" style="max-width:250px; border: 8px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
-                </div>
-                <p style="text-align: center; font-weight: bold; color: #075e54;">Escanea este código con WhatsApp Business</p>
-            `;
-        });
-        
-        // Solicitar explícitamente el código QR al conectar
-        socket.on('connect', () => {
-            console.log("Socket conectado, solicitando estado actual");
-            // El servidor enviará el QR si está disponible
-        });
-
-        // Escuchar evento específico de redirección forzada
-        socket.on('forceRedirect', (data) => {
-            console.log("Recibido evento de redirección forzada:", data);
-            if (data && data.url) {
-                // Intentar forzar la redirección usando múltiples métodos
-                window.location.href = data.url;
-                setTimeout(() => {
-                    window.location.replace(data.url);
-                }, 200);
-            }
-        });
-        
-        // Manejar el estado de WhatsApp
-        socket.on('whatsappStatus', (data) => {
-            console.log("Cambio de estado de WhatsApp:", data);
+            qrUpdateCount++;
+            console.log(`Nuevo código QR recibido (${qrUpdateCount})`);
             
-            if (data.status === 'connected') {
-                console.log("CONEXIÓN EXITOSA DETECTADA");
-                updateWhatsAppStatus(true);
-                
-                // Guardar estado en localStorage para persistencia
-                localStorage.setItem('whatsappConnected', 'true');
-                if (data.info) {
-                    localStorage.setItem('whatsappUserInfo', JSON.stringify(data.info));
-                }
-            } else if (data.status === 'authenticated') {
-                // Cuando el usuario escanea el QR pero aún no está completamente conectado
-                connectionStatus.textContent = 'Autenticado';
-                connectionStatus.className = 'status-button connected';
-                qrcodeContainer.style.display = 'none';
-                connectionSuccess.style.display = 'block';
-                
-                document.querySelector('#connection-success h3').textContent = '¡Autenticación Exitosa!';
-                document.querySelector('#connection-success p').textContent = 'Preparando tu sesión de WhatsApp...';
-                
-                // No redirigir todavía, esperar al evento 'connected'
-            } else if (data.status === 'disconnected') {
-                updateWhatsAppStatus(false);
-                
-                // Limpiar estado almacenado
-                localStorage.removeItem('whatsappConnected');
-                localStorage.removeItem('whatsappUserInfo');
-            } else if (data.status === 'regenerating') {
-                // Mostrar estado de regenerando QR
-                connectionStatus.textContent = 'Regenerando QR';
-                connectionStatus.className = 'status-button disconnected';
-                qrcodeContainer.style.display = 'block';
-                connectionSuccess.style.display = 'none';
-                
-                // Mostrar mensaje de espera
-                qrcodeElement.innerHTML = `
-                    <p style="text-align: center;">
-                        <span class="loading-spinner"></span> Inicializando nuevo WhatsApp...
-                    </p>
-                    <p style="text-align: center; font-size: 0.9em; color: #666;">
-                        Esto puede tardar unos momentos. Por favor espera.
-                    </p>
-                `;
-            } else if (data.status === 'error') {
-                // Mostrar mensaje de error
-                connectionStatus.textContent = 'Error';
-                connectionStatus.className = 'status-button disconnected';
-                
-                qrcodeElement.innerHTML = `
-                    <p style="text-align: center; color: #E60023;">
-                        <span style="font-size: 32px;">⚠️</span><br>
-                        Error al generar el código QR.<br>
-                        Por favor, recarga la página.
-                    </p>
-                `;
+            qrcodeElement.innerHTML = `
+                <img src="${qrCodeDataUrl}" alt="WhatsApp QR Code">
+            `;
+            
+            // Mostrar mensaje de ayuda después de varios QR
+            if (qrUpdateCount > 3) {
+                const helpText = document.createElement('p');
+                helpText.style.color = '#E60023';
+                helpText.style.marginTop = '10px';
+                helpText.innerHTML = 'Si tienes problemas escaneando, intenta <strong>borrar los datos vinculados</strong> en WhatsApp Business antes de escanear de nuevo.';
+                qrcodeContainer.appendChild(helpText);
             }
         });
         
-        // Función para actualizar la interfaz según el estado de conexión
-        function updateWhatsAppStatus(isConnected) {
-            if (isConnected) {
+        // Escuchar cambios de estado
+        socket.on('whatsappStatus', (data) => {
+            console.log('Estado de WhatsApp actualizado:', data);
+            
+            if (data.status === 'authenticated') {
+                // El QR fue escaneado correctamente
+                isAuthenticated = true;
+                connectionStatus.textContent = 'Autenticado';
+                connectionStatus.className = 'status-button authenticated';
+                
+                // Mostrar mensaje de éxito intermedio
+                qrcodeElement.innerHTML = `
+                    <div style="text-align: center; padding: 20px;">
+                        <span style="font-size: 48px;">✓</span>
+                        <p style="margin-top: 10px; font-weight: bold;">Código QR escaneado correctamente</p>
+                        <p>Completando conexión...</p>
+                        <div class="loading-spinner" style="margin-top: 10px;"></div>
+                    </div>
+                `;
+                
+            } else if (data.status === 'connected') {
+                // Totalmente conectado
+                isConnected = true;
                 connectionStatus.textContent = 'Conectado';
                 connectionStatus.className = 'status-button connected';
+                
+                // Ocultar QR y mostrar éxito
                 qrcodeContainer.style.display = 'none';
                 connectionSuccess.style.display = 'block';
                 
-                // Mostrar botón explícito de redirección y cuenta regresiva
-                document.querySelector('#connection-success h3').textContent = '¡WhatsApp Conectado!';
-                document.querySelector('#connection-success p').innerHTML = 
-                    `Tu WhatsApp está ahora conectado a MateChat.<br>Redirigiendo en 3 segundos...`;
-                
-                // Configurar botones de redirección
-                const chatButton = document.querySelector('#connection-success a.button');
-                chatButton.style.display = 'inline-block';
-                chatButton.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    forceRedirect();
-                });
-                
-                // Configurar botón manual de redirección
-                const manualButton = document.getElementById('manual-redirect');
-                if (manualButton) {
-                    manualButton.addEventListener('click', function() {
-                        forceRedirect();
-                    });
-                }
+                // Guardar estado en localStorage
+                localStorage.setItem('whatsappConnected', 'true');
                 
                 // Redirigir automáticamente después de 3 segundos
-                const redirectTimer = setTimeout(forceRedirect, 3000);
+                clearTimeout(redirectTimer);
+                redirectTimer = setTimeout(forceRedirect, 3000);
                 
-                // Mostrar cuenta regresiva
+                // Actualizar cuenta regresiva
                 let seconds = 3;
                 const countdownInterval = setInterval(() => {
                     seconds--;
-                    document.querySelector('#connection-success p').innerHTML = 
-                        `Tu WhatsApp está ahora conectado a MateChat.<br>Redirigiendo en ${seconds} segundos...`;
+                    document.querySelector('#connection-success p:nth-child(2)').textContent = 
+                        `Redirigiendo a la interfaz de chat en ${seconds} segundos...`;
                     
                     if (seconds <= 0) {
                         clearInterval(countdownInterval);
                     }
                 }, 1000);
                 
-                // Función para forzar la redirección de diferentes maneras
-                function forceRedirect() {
-                    try {
-                        clearTimeout(redirectTimer);
-                        
-                        // Intentar varias formas de redirección
-                        console.log("Forzando redirección a /chat");
-                        
-                        // Enviar petición al servidor notificando redirección
-                        fetch('/api/acknowledge-connection', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ redirecting: true, timestamp: new Date().toISOString() })
-                        }).catch(err => console.warn("Error al enviar notificación de redirección:", err));
-                        
-                        // Método 1: window.location.href con parámetro de fuerza para bypassear la verificación
-                        window.location.href = '/chat?force=true&t=' + new Date().getTime();
-                        
-                        // Método 2: window.location.replace (como respaldo) con parámetro de fuerza
-                        setTimeout(() => {
-                            window.location.replace('/chat?force=true&t=' + new Date().getTime());
-                        }, 500);
-                        
-                        // Método 3: abrir en nueva pestaña con parámetro de fuerza
-                        setTimeout(() => {
-                            const newTab = window.open('/chat?force=true', '_blank');
-                            if (newTab) {
-                                // No cerrar la pestaña actual en este caso
-                                console.log("Nueva pestaña abierta como último recurso");
-                            }
-                        }, 1000);
-                    } catch (error) {
-                        console.error("Error durante la redirección:", error);
-                        // Mostrar mensaje claro al usuario
-                        alert("Error al redireccionar. Por favor, haz clic en el botón 'HACER CLIC AQUÍ PARA IR AL CHAT'");
-                    }
-                }
-            } else {
+            } else if (data.status === 'disconnected') {
+                // Desconectado
+                isAuthenticated = false;
+                isConnected = false;
                 connectionStatus.textContent = 'Desconectado';
                 connectionStatus.className = 'status-button disconnected';
+                
+                // Limpiar estado almacenado
+                localStorage.removeItem('whatsappConnected');
+                
+                // Mostrar contenedor QR
                 qrcodeContainer.style.display = 'block';
                 connectionSuccess.style.display = 'none';
-            }
-        }
-
-        // Comprobar estado inicial
-        fetch('/api/whatsapp-status')
-            .then(response => response.json())
-            .then(data => {
-                console.log("Estado inicial de WhatsApp:", data);
-                if (data.isConnected) {
-                    updateWhatsAppStatus(true);
-                }
-            })
-            .catch(error => console.error('Error al obtener el estado de WhatsApp:', error));
-            
-        // Hacer que el botón de estado sea clicable para reintentar conexión
-        connectionStatus.addEventListener('click', function() {
-            if (this.textContent === 'Desconectado') {
-                if (confirm('¿Quieres generar un nuevo código QR? La sesión actual se perderá.')) {
-                    // Solicitar nuevo código QR
-                    socket.emit('requestQR');
-                    
-                    // Mostrar mensaje de espera
-                    qrcodeElement.innerHTML = `
-                        <p style="text-align: center;">
-                            <span class="loading-spinner"></span> Solicitando nuevo código QR...
-                        </p>
-                    `;
-                    
-                    // Deshabilitar temporalmente el botón
-                    this.style.opacity = '0.5';
-                    this.style.pointerEvents = 'none';
-                    
-                    // Volver a habilitar después de 10 segundos
-                    setTimeout(() => {
-                        this.style.opacity = '1';
-                        this.style.pointerEvents = 'auto';
-                    }, 10000);
-                }
-            } else if (this.textContent === 'Error' || this.textContent === 'Regenerando QR') {
-                // Recargar la página para volver a intentar todo desde cero
-                window.location.reload();
+                
+                // Mostrar mensaje de espera para nuevo QR
+                qrcodeElement.innerHTML = `
+                    <span class="loading-spinner"></span>
+                    <span>Esperando nuevo código QR...</span>
+                `;
             }
         });
+        
+        // Evento de redirección forzada
+        socket.on('forceRedirect', (data) => {
+            console.log('Recibido evento de redirección forzada:', data);
+            if (data && data.url) {
+                forceRedirect(data.url);
+            }
+        });
+        
+        // Función de redirección forzada
+        function forceRedirect(url = '/chat?force=true') {
+            clearTimeout(redirectTimer);
+            console.log('Redirigiendo a:', url);
+            
+            // Usar múltiples métodos para garantizar la redirección
+            window.location.href = url;
+            
+            setTimeout(() => {
+                window.location.replace(url);
+            }, 500);
+        }
+        
+        // Configurar botón de redirección manual
+        if (manualRedirectButton) {
+            manualRedirectButton.addEventListener('click', () => {
+                forceRedirect('/chat?force=true');
+            });
+        }
     </script>
 </body>
 </html>
