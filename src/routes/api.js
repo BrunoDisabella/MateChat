@@ -1,149 +1,104 @@
 const express = require('express');
 const router = express.Router();
-const whatsappApi = require('../services/whatsappApi');
 
-// Ruta para inicializar la conexión con WhatsApp
-router.post('/whatsapp/initialize', async (req, res) => {
-  try {
-    // Comprobar si hay configuración en el body
-    const apiSettings = req.body?.apiSettings;
+/**
+ * Configura las rutas de la API
+ * @param {Object} whatsappService - Servicio de WhatsApp
+ * @returns {Object} - Router de Express
+ */
+module.exports = (whatsappService) => {
+  // Middleware para verificar token de seguridad
+  const verifyToken = (req, res, next) => {
+    const token = req.headers['x-api-key'] || req.query.token;
+    const securityToken = process.env.SECURITY_TOKEN;
     
-    const result = await whatsappApi.initialize(apiSettings);
-    if (result.success) {
-      res.status(200).json({
-        success: true,
-        businessInfo: result.businessInfo
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        error: result.error
+    if (!token || token !== securityToken) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'No autorizado. Token inválido o faltante.' 
       });
     }
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Error al inicializar la conexión con WhatsApp'
-    });
-  }
-});
+    
+    next();
+  };
 
-// Ruta para enviar un mensaje
-router.post('/whatsapp/send', async (req, res) => {
-  try {
+  // Ruta para verificar estado de la API
+  router.get('/status', verifyToken, (req, res) => {
+    const status = whatsappService.getStatus();
+    res.json(status);
+  });
+
+  // Ruta para enviar mensaje
+  router.post('/send', verifyToken, async (req, res) => {
     const { to, message } = req.body;
     
-    // Validar parámetros
     if (!to || !message) {
-      return res.status(400).json({
-        success: false,
-        error: 'Se requieren los parámetros "to" y "message"'
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Se requieren los campos "to" y "message"' 
       });
     }
     
-    // Verificar conexión
-    if (!whatsappApi.isConnected()) {
-      return res.status(403).json({
-        success: false,
-        error: 'No hay conexión con WhatsApp. Inicialice primero.'
+    try {
+      const result = await whatsappService.sendMessage(to, message);
+      res.json(result);
+    } catch (error) {
+      console.error('Error en /api/send:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error al enviar mensaje', 
+        error: error.message 
       });
     }
-    
-    const result = await whatsappApi.sendTextMessage(to, message);
-    if (result.success) {
-      res.status(200).json(result);
-    } else {
-      res.status(400).json(result);
-    }
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Error al enviar mensaje'
-    });
-  }
-});
-
-// Ruta para obtener conversaciones
-router.get('/whatsapp/conversations', async (req, res) => {
-  try {
-    // Verificar conexión
-    if (!whatsappApi.isConnected()) {
-      return res.status(403).json({
-        success: false,
-        error: 'No hay conexión con WhatsApp. Inicialice primero.'
-      });
-    }
-    
-    const result = await whatsappApi.getConversations();
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Error al obtener conversaciones'
-    });
-  }
-});
-
-// Ruta para obtener mensajes de una conversación
-router.get('/whatsapp/conversations/:id/messages', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Verificar conexión
-    if (!whatsappApi.isConnected()) {
-      return res.status(403).json({
-        success: false,
-        error: 'No hay conexión con WhatsApp. Inicialice primero.'
-      });
-    }
-    
-    const result = await whatsappApi.getMessages(id);
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Error al obtener mensajes'
-    });
-  }
-});
-
-// Ruta para obtener estado de conexión
-router.get('/whatsapp/status', (req, res) => {
-  const connected = whatsappApi.isConnected();
-  const businessInfo = whatsappApi.getBusinessInfo();
-  
-  res.status(200).json({
-    success: true,
-    connected,
-    businessInfo
   });
-});
 
-// Ruta para actualizar la configuración de API
-router.post('/whatsapp/config', (req, res) => {
-  try {
-    const { apiSettings } = req.body;
+  // Ruta para verificar si un número está registrado en WhatsApp
+  router.get('/check/:number', verifyToken, async (req, res) => {
+    const { number } = req.params;
     
-    if (!apiSettings) {
-      return res.status(400).json({
-        success: false,
-        error: 'No se proporcionó configuración de API'
+    if (!number) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Se requiere un número de teléfono' 
       });
     }
     
-    // Actualizar configuración
-    whatsappApi.updateConfig(apiSettings);
-    
-    res.status(200).json({
-      success: true,
-      message: 'Configuración actualizada correctamente'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Error al actualizar configuración'
-    });
-  }
-});
+    try {
+      const result = await whatsappService.checkNumberStatus(number);
+      res.json(result);
+    } catch (error) {
+      console.error('Error en /api/check:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error al verificar número', 
+        error: error.message 
+      });
+    }
+  });
 
-module.exports = router;
+  // Ruta para enviar mensaje a un grupo
+  router.post('/send-group', verifyToken, async (req, res) => {
+    const { groupId, message } = req.body;
+    
+    if (!groupId || !message) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Se requieren los campos "groupId" y "message"' 
+      });
+    }
+    
+    try {
+      const result = await whatsappService.sendGroupMessage(groupId, message);
+      res.json(result);
+    } catch (error) {
+      console.error('Error en /api/send-group:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error al enviar mensaje al grupo', 
+        error: error.message 
+      });
+    }
+  });
+
+  return router;
+};

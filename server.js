@@ -1,3 +1,4 @@
-// Este archivo es un punto de entrada para Railway
-// Simplemente redirige a la ubicación real de la aplicación
-require('./src/index.js');
+// Este archivo es para Railway, que utiliza server.js como punto de entrada
+// Simplemente importamos y ejecutamos el archivo index.js
+
+require('./src/index');

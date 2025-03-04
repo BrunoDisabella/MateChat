@@ -1,347 +1,127 @@
-const axios = require('axios');
-const whatsappConfig = require('../config/whatsapp');
-
-class WhatsAppAPI {
-  constructor() {
-    this.config = {
-      apiUrl: whatsappConfig.apiUrl,
-      appId: whatsappConfig.appId,
-      appSecret: whatsappConfig.appSecret,
-      accessToken: whatsappConfig.accessToken,
-      phoneNumberId: whatsappConfig.phoneNumberId,
-      businessAccountId: whatsappConfig.businessAccountId
-    };
-    
-    this.axiosInstance = axios.create({
-      baseURL: this.config.apiUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.accessToken}`
-      }
-    });
-    
-    this.connected = false;
-    this.businessInfo = null;
+/**
+ * Servicio para interactuar con la API de WhatsApp Web
+ */
+class WhatsAppService {
+  constructor(client) {
+    this.client = client;
   }
 
   /**
-   * Actualiza la configuración de la API y reconfigura el cliente axios
+   * Envía un mensaje de texto a un número de WhatsApp
+   * @param {string} to - Número de teléfono con código de país (ej: 54XXXXXXXXXX@c.us)
+   * @param {string} message - Mensaje a enviar
+   * @returns {Promise<Object>} - Resultado del envío
    */
-  updateConfig(apiSettings) {
-    if (!apiSettings) return;
-    
-    // Actualizar configuración
-    this.config = {
-      ...this.config,
-      ...apiSettings
-    };
-    
-    // Recrear instancia de axios con la nueva configuración
-    this.axiosInstance = axios.create({
-      baseURL: this.config.apiUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.accessToken}`
-      }
-    });
-    
-    console.log('Configuración de API actualizada');
-    return true;
-  }
-
-  /**
-   * Inicializa la conexión con la API de WhatsApp
-   */
-  async initialize(apiSettings) {
+  async sendMessage(to, message) {
     try {
-      // Si se proporciona configuración, actualizarla
-      if (apiSettings) {
-        this.updateConfig(apiSettings);
+      // Validar formato del número
+      if (!to.includes('@c.us')) {
+        to = `${to}@c.us`;
       }
-      
-      // Verificar que al menos el app ID y access token estén configurados
-      if (!this.config.appId || !this.config.accessToken) {
-        throw new Error('Las credenciales básicas (APP_ID, ACCESS_TOKEN) no están configuradas correctamente');
-      }
-      
-      // Información simulada para pruebas iniciales
-      this.businessInfo = {
-        name: "MateChat Business",
-        about: "Plataforma de mensajería empresarial",
-        address: "Ejemplo de dirección",
-        description: "Conectando empresas con sus clientes",
-        vertical: "UNDEFINED",
-        id: this.config.appId
-      };
-      
-      this.connected = true;
-      
-      // Intentar obtener información real de la cuenta si phoneNumberId está configurado
-      if (this.config.phoneNumberId) {
-        try {
-          const response = await this.getBusinessProfile();
-          if (response && response.data) {
-            this.businessInfo = response.data;
-          }
-        } catch (profileError) {
-          console.warn('No se pudo obtener el perfil de negocio, usando información simulada:', profileError.message);
-          // Continuamos con la información simulada
-        }
-      }
+
+      // Enviar el mensaje
+      const response = await this.client.sendMessage(to, message);
       
       return {
         success: true,
-        businessInfo: this.businessInfo
+        messageId: response.id.id,
+        timestamp: response.timestamp,
+        message: 'Mensaje enviado correctamente'
       };
     } catch (error) {
-      console.error('Error al inicializar la API de WhatsApp:', error.message);
+      console.error('Error al enviar mensaje:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
+        message: 'Error al enviar mensaje'
       };
     }
   }
 
   /**
-   * Obtiene la información del perfil de negocio
+   * Verifica si un número está registrado en WhatsApp
+   * @param {string} number - Número de teléfono con código de país (sin @c.us)
+   * @returns {Promise<Object>} - Estado de verificación
    */
-  async getBusinessProfile() {
+  async checkNumberStatus(number) {
     try {
-      if (!this.config.phoneNumberId) {
-        throw new Error('ID de número de teléfono no configurado');
+      // Validar y formatear el número si es necesario
+      if (number.includes('@c.us')) {
+        number = number.split('@')[0];
       }
       
-      return await this.axiosInstance.get(
-        `/${this.config.phoneNumberId}/whatsapp_business_profile`
-      );
-    } catch (error) {
-      console.error('Error al obtener perfil de negocio:', error.response?.data || error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Envía un mensaje de texto
-   */
-  async sendTextMessage(to, text) {
-    try {
-      if (!this.config.phoneNumberId) {
-        return {
-          success: false,
-          error: 'ID de número de teléfono no configurado. Configúrelo en Ajustes.'
-        };
-      }
+      const response = await this.client.isRegisteredUser(`${number}@c.us`);
       
-      // En modo demostración, simular envío exitoso
-      if (to.startsWith('new-') || to.startsWith('demo-')) {
-        return {
-          success: true,
-          data: {
-            messaging_product: "whatsapp",
-            contacts: [{ wa_id: to }],
-            messages: [{ id: `demo-${Date.now()}` }]
-          }
-        };
-      }
-      
-      const response = await this.axiosInstance.post(
-        `/${this.config.phoneNumberId}/messages`,
-        {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: to,
-          type: 'text',
-          text: { body: text }
-        }
-      );
       return {
         success: true,
-        data: response.data
+        isRegistered: response,
+        number
       };
     } catch (error) {
-      console.error('Error al enviar mensaje:', error.response?.data || error.message);
+      console.error('Error al verificar número:', error);
       return {
         success: false,
-        error: error.response?.data || error.message
+        error: error.message,
+        number
       };
     }
   }
 
   /**
-   * Obtiene mensajes recientes (simulación para desarrollo)
+   * Envía un mensaje a un chat grupal
+   * @param {string} groupId - ID del grupo (ej: XXXXXX@g.us)
+   * @param {string} message - Mensaje a enviar
+   * @returns {Promise<Object>} - Resultado del envío
    */
-  async getConversations() {
-    // Simulación de conversaciones para desarrollo
-    // En una implementación real, esto requeriría integración con Webhooks y una base de datos
-    return {
-      success: true,
-      data: {
-        conversations: [
-          {
-            id: '1234567890',
-            contact: { 
-              name: 'Juan Pérez',
-              phone: '5491122334455'
-            },
-            lastMessage: {
-              text: 'Hola, ¿cómo estás?',
-              timestamp: new Date().toISOString(),
-              direction: 'inbound'
-            }
-          },
-          {
-            id: '0987654321',
-            contact: { 
-              name: 'María López',
-              phone: '5491199887766'
-            },
-            lastMessage: {
-              text: 'Gracias por la información',
-              timestamp: new Date(Date.now() - 3600000).toISOString(),
-              direction: 'outbound'
-            }
-          },
-          {
-            id: '5678901234',
-            contact: { 
-              name: 'Carlos Rodríguez',
-              phone: '5491133445566'
-            },
-            lastMessage: {
-              text: '¿Cuándo estará disponible el producto?',
-              timestamp: new Date(Date.now() - 7200000).toISOString(),
-              direction: 'inbound'
-            }
-          }
-        ]
+  async sendGroupMessage(groupId, message) {
+    try {
+      // Validar formato del ID del grupo
+      if (!groupId.includes('@g.us')) {
+        groupId = `${groupId}@g.us`;
       }
-    };
-  }
 
-  /**
-   * Obtiene los mensajes de una conversación específica
-   */
-  async getMessages(conversationId) {
-    // Para conversaciones recién creadas, mostrar mensajes vacíos
-    if (conversationId.startsWith('new-')) {
+      const response = await this.client.sendMessage(groupId, message);
+      
       return {
         success: true,
-        data: {
-          messages: []
-        }
+        messageId: response.id.id,
+        timestamp: response.timestamp,
+        message: 'Mensaje de grupo enviado correctamente'
+      };
+    } catch (error) {
+      console.error('Error al enviar mensaje al grupo:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Error al enviar mensaje al grupo'
       };
     }
-    
-    // Simulación de mensajes para una conversación específica
-    const conversations = {
-      '1234567890': [
-        {
-          id: 'msg1_1',
-          text: '¡Hola! Bienvenido a MateChat',
-          timestamp: new Date(Date.now() - 86400000).toISOString(),
-          direction: 'outbound'
-        },
-        {
-          id: 'msg1_2',
-          text: 'Hola, ¿cómo estás?',
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          direction: 'inbound'
-        },
-        {
-          id: 'msg1_3',
-          text: 'Estoy muy bien, ¿en qué puedo ayudarte hoy?',
-          timestamp: new Date(Date.now() - 1800000).toISOString(),
-          direction: 'outbound'
-        }
-      ],
-      '0987654321': [
-        {
-          id: 'msg2_1',
-          text: 'Gracias por contactarnos. ¿Qué información necesitas?',
-          timestamp: new Date(Date.now() - 172800000).toISOString(),
-          direction: 'outbound'
-        },
-        {
-          id: 'msg2_2',
-          text: 'Quiero saber los horarios de atención',
-          timestamp: new Date(Date.now() - 86400000).toISOString(),
-          direction: 'inbound'
-        },
-        {
-          id: 'msg2_3',
-          text: 'Nuestros horarios son de lunes a viernes de 9am a 6pm',
-          timestamp: new Date(Date.now() - 82800000).toISOString(),
-          direction: 'outbound'
-        },
-        {
-          id: 'msg2_4',
-          text: 'Gracias por la información',
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          direction: 'inbound'
-        }
-      ],
-      '5678901234': [
-        {
-          id: 'msg3_1',
-          text: 'Buenos días, estoy interesado en sus productos',
-          timestamp: new Date(Date.now() - 259200000).toISOString(),
-          direction: 'inbound'
-        },
-        {
-          id: 'msg3_2',
-          text: 'Hola, ¿qué producto te interesa en particular?',
-          timestamp: new Date(Date.now() - 252000000).toISOString(),
-          direction: 'outbound'
-        },
-        {
-          id: 'msg3_3',
-          text: 'El modelo X500, ¿está disponible?',
-          timestamp: new Date(Date.now() - 172800000).toISOString(),
-          direction: 'inbound'
-        },
-        {
-          id: 'msg3_4',
-          text: 'Actualmente está agotado, pero esperamos tenerlo la próxima semana',
-          timestamp: new Date(Date.now() - 169200000).toISOString(),
-          direction: 'outbound'
-        },
-        {
-          id: 'msg3_5',
-          text: '¿Cuándo estará disponible el producto?',
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-          direction: 'inbound'
-        }
-      ]
-    };
-    
-    return {
-      success: true,
-      data: {
-        messages: conversations[conversationId] || []
-      }
-    };
   }
 
   /**
-   * Verifica el estado de conexión
+   * Obtiene el estado del cliente de WhatsApp
+   * @returns {Object} - Estado del cliente
    */
-  isConnected() {
-    return this.connected;
-  }
-
-  /**
-   * Obtiene información del negocio
-   */
-  getBusinessInfo() {
-    return this.businessInfo;
-  }
-  
-  /**
-   * Obtiene la configuración actual
-   */
-  getConfig() {
-    return this.config;
+  getStatus() {
+    try {
+      const status = {
+        connected: this.client.info !== undefined,
+        info: this.client.info || {}
+      };
+      
+      return {
+        success: true,
+        status
+      };
+    } catch (error) {
+      console.error('Error al obtener estado:', error);
+      return {
+        success: false,
+        error: error.message,
+        status: { connected: false }
+      };
+    }
   }
 }
 
-module.exports = new WhatsAppAPI();
+module.exports = WhatsAppService;

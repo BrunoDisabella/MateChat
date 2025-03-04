@@ -1,81 +1,98 @@
-# MateChat
+# MateChat - Integración WhatsApp Web
 
-Aplicación para conectar WhatsApp mediante la API oficial de WhatsApp Business.
+MateChat es una aplicación web que permite conectar WhatsApp mediante un código QR (similar a WhatsApp Web) y proporciona una API para enviar mensajes y webhooks para recibir eventos en tiempo real.
 
-## Descripción
+## Características
 
-MateChat es una aplicación web que permite gestionar conversaciones de WhatsApp mediante la API oficial de WhatsApp Business. La aplicación permite:
-
-- Conectarse a la API de WhatsApp Business
-- Enviar y recibir mensajes
-- Gestionar conversaciones
-- Visualizar historial de mensajes
+- 🔗 Conexión a WhatsApp Web mediante código QR
+- 📱 API RESTful para enviar mensajes a contactos y grupos
+- 🔔 Webhook para recibir notificaciones de mensajes en tiempo real
+- 🤖 Integración fácil con chatbots y otras aplicaciones
+- 🔒 Seguridad mediante tokens de autenticación
 
 ## Requisitos
 
-- Node.js v14 o superior
-- Cuenta de WhatsApp Business API (Meta for Developers)
-- Credenciales de acceso a la API de WhatsApp
+- Node.js 14 o superior
+- NPM o Yarn
 
 ## Instalación
 
 1. Clonar el repositorio:
-```
-git clone https://github.com/tuusuario/matechat.git
+```bash
+git clone https://github.com/TuUsuario/matechat.git
 cd matechat
 ```
 
 2. Instalar dependencias:
-```
+```bash
 npm install
 ```
 
 3. Configurar variables de entorno:
-Crea un archivo `.env` en la raíz del proyecto con el siguiente contenido:
+```bash
+cp .env.example .env
 ```
-# WhatsApp Business API credentials
-WHATSAPP_API_URL=https://graph.facebook.com/v19.0
-WHATSAPP_PHONE_NUMBER_ID=tu_phone_number_id
-WHATSAPP_BUSINESS_ACCOUNT_ID=tu_business_account_id
-WHATSAPP_ACCESS_TOKEN=tu_access_token
-
-# Server configuration
-PORT=3000
-NODE_ENV=development
-```
+Editar el archivo `.env` con tus configuraciones.
 
 4. Iniciar la aplicación:
-```
+```bash
 npm start
 ```
 
-## Configuración para Railway
+Para desarrollo:
+```bash
+npm run dev
+```
 
-La aplicación está configurada para ser desplegada en Railway. Se incluye un archivo `Procfile` para este propósito. Solo es necesario configurar las variables de entorno en el panel de Railway.
+## Uso de la API
 
-## Uso
+### Enviar mensaje
 
-1. Abre la aplicación en tu navegador: `http://localhost:3000` (o la URL de tu despliegue)
-2. Haz clic en el botón "Conectar" para inicializar la conexión con WhatsApp Business API
-3. Una vez conectado, podrás ver tus conversaciones y enviar/recibir mensajes
+```bash
+curl -X POST http://localhost:3000/api/send \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: tu_token_seguridad" \
+  -d '{"to":"5491112345678", "message":"Hola desde MateChat"}'
+```
+
+### Configurar webhook
+
+```bash
+curl -X POST http://localhost:3000/webhook/config \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: tu_token_seguridad" \
+  -d '{"url":"https://tudominio.com/recibir-mensajes"}'
+```
 
 ## Estructura del proyecto
 
-- `/src`: Código fuente de la aplicación
-  - `/config`: Configuración de la aplicación
-  - `/public`: Archivos estáticos (HTML, CSS, JS)
-  - `/routes`: Rutas de la API
-  - `/services`: Servicios de la aplicación
-- `.env`: Variables de entorno (no incluido en el repositorio)
-- `package.json`: Dependencias y scripts
-- `Procfile`: Configuración para Railway
+```
+├── src/
+│   ├── config/         # Configuraciones
+│   ├── public/         # Archivos estáticos
+│   ├── routes/         # Rutas de la API
+│   ├── services/       # Servicios
+│   └── index.js        # Punto de entrada
+├── .env                # Variables de entorno
+├── package.json        # Dependencias
+└── server.js           # Entrada para Railway
+```
 
-## Tecnologías utilizadas
+## Despliegue en Railway
 
-- Node.js + Express: Backend
-- WhatsApp Business API: Integración con WhatsApp
-- JavaScript + HTML + CSS: Frontend
+1. Crea una cuenta en [Railway](https://railway.app/)
+2. Conecta tu repositorio de GitHub
+3. Configura las variables de entorno en el dashboard de Railway
+4. Railway desplegará automáticamente la aplicación
+
+## Contribuir
+
+1. Haz un fork del repositorio
+2. Crea una rama para tu característica: `git checkout -b feature/nueva-caracteristica`
+3. Haz commit de tus cambios: `git commit -m 'Agrega nueva característica'`
+4. Empuja a la rama: `git push origin feature/nueva-caracteristica`
+5. Abre un Pull Request
 
 ## Licencia
 
-ISC
+Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.

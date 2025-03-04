@@ -1,21 +1,42 @@
 {
   "name": "matechat",
   "version": "1.0.0",
-  "description": "Aplicación para conectar WhatsApp mediante API oficial",
+  "description": "WhatsApp web app integration",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["whatsapp", "api", "matechat", "whatsapp-business"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BrunoDisabella/MateChat.git"
+  },
+  "keywords": [
+    "whatsapp",
+    "api",
+    "webhook",
+    "chat",
+    "bot"
+  ],
   "author": "",
   "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/BrunoDisabella/MateChat/issues"
+  },
+  "homepage": "https://github.com/BrunoDisabella/MateChat#readme",
   "dependencies": {
-    "axios": "^1.6.7",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "socket.io": "^4.7.2"
+    "axios": "^1.8.1",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "qrcode-terminal": "^0.12.0",
+    "socket.io": "^4.8.1",
+    "whatsapp-web.js": "^1.26.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
   },
   "engines": {
     "node": ">=14.0.0"

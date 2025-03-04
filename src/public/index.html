@@ -3,131 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MateChat</title>
-    <link rel="stylesheet" href="/css/styles.css">
+    <title>MateChat - WhatsApp Web</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="main-container">
-        <div class="header">
-            <div class="logo">
-                <div class="logo-icon">
-                    <i>M</i>
-                </div>
-                <span id="businessName">MateChat</span>
+    <div class="container">
+        <header>
+            <h1><i class="fab fa-whatsapp"></i> MateChat</h1>
+            <p>Conexión WhatsApp Web</p>
+        </header>
+
+        <main>
+            <div id="status" class="status disconnected">
+                <span id="status-text">Desconectado</span>
+                <div id="connection-info"></div>
             </div>
-            <div class="status-info">
-                <div id="statusIndicator" class="status-indicator status-disconnected">Desconectado</div>
-                <button id="connectButton" class="connect-btn">Conectar</button>
-                <button id="disconnectButton" class="disconnect-btn">Desconectar</button>
-                <button id="settingsButton" class="settings-btn">⚙️</button>
+
+            <div id="qr-container" class="qr-container">
+                <div id="qr-code"></div>
+                <p>Escanea el código QR con WhatsApp para conectarte</p>
             </div>
-        </div>
-        
-        <div class="content">
-            <div class="conversations-panel">
-                <div class="search-bar">
-                    <input type="text" class="search-input" placeholder="Buscar o iniciar un nuevo chat" id="searchInput">
-                </div>
-                <div class="new-chat-button" id="newChatButton">
-                    <span>+</span> Nuevo chat
-                </div>
-                <div class="conversations-list" id="conversationsList">
-                    <!-- Las conversaciones se cargarán dinámicamente -->
-                    <div class="conversation-item empty">
-                        Conecta tu cuenta de WhatsApp Business para ver las conversaciones
-                    </div>
-                </div>
+
+            <div class="features">
+                <h2>Características</h2>
+                <ul>
+                    <li><i class="fas fa-check"></i> Conexión mediante código QR</li>
+                    <li><i class="fas fa-check"></i> API para enviar mensajes</li>
+                    <li><i class="fas fa-check"></i> Webhooks para recibir eventos</li>
+                    <li><i class="fas fa-check"></i> Mensajes a grupos y contactos</li>
+                </ul>
             </div>
-            
-            <div class="chat-panel">
-                <div class="chat-header">
-                    <button class="back-button">&larr;</button>
-                    <div class="contact-details">
-                        <div class="contact-header-name">Selecciona una conversación</div>
-                        <div class="contact-status">0 mensajes</div>
-                    </div>
+
+            <div id="message-form" class="message-form hidden">
+                <h2>Enviar Mensaje de Prueba</h2>
+                <div class="form-group">
+                    <label for="phone">Número (con código de país):</label>
+                    <input type="text" id="phone" placeholder="Ej: 5491112345678">
                 </div>
-                <div class="messages-container" id="messagesContainer">
-                    <div class="empty-messages">
-                        Selecciona una conversación para ver los mensajes
-                    </div>
+                <div class="form-group">
+                    <label for="message">Mensaje:</label>
+                    <textarea id="message" placeholder="Escribe tu mensaje..."></textarea>
                 </div>
-                <div class="message-input-container">
-                    <input type="text" class="message-input" placeholder="Escribe un mensaje" id="messageInput">
-                    <button class="send-button" id="sendButton">→</button>
-                </div>
+                <button id="send-btn" type="button">Enviar Mensaje</button>
+                <div id="send-result"></div>
             </div>
-        </div>
-        
-        <div class="footer">
-            <span>🔒</span>
-            <span>Powered by WhatsApp Business API</span>
-        </div>
+        </main>
+
+        <section class="docs">
+            <h2>Documentación API</h2>
+            <div class="api-endpoint">
+                <h3>Enviar Mensaje</h3>
+                <code>POST /api/send</code>
+                <p>Envía un mensaje a un número de WhatsApp</p>
+                <pre>
+{
+  "to": "5491112345678",
+  "message": "Hola mundo"
+}
+                </pre>
+            </div>
+            <div class="api-endpoint">
+                <h3>Configurar Webhook</h3>
+                <code>POST /webhook/config</code>
+                <p>Configura la URL del webhook para recibir eventos</p>
+                <pre>
+{
+  "url": "https://midominio.com/webhook"
+}
+                </pre>
+            </div>
+        </section>
+
+        <footer>
+            <p>&copy; 2025 MateChat. Todos los derechos reservados.</p>
+        </footer>
     </div>
 
-    <!-- Modal de configuración API -->
-    <div class="modal" id="settingsModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Configuración de API</h2>
-                <span class="close-modal" id="closeSettingsModal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="apiSettingsForm">
-                    <div class="form-group">
-                        <label for="apiUrl">URL de API:</label>
-                        <input type="text" id="apiUrl" name="apiUrl" value="https://graph.facebook.com/v19.0">
-                    </div>
-                    <div class="form-group">
-                        <label for="appId">App ID:</label>
-                        <input type="text" id="appId" name="appId" value="1157968849126039">
-                    </div>
-                    <div class="form-group">
-                        <label for="appSecret">App Secret:</label>
-                        <input type="password" id="appSecret" name="appSecret" value="e173f3786a59318a4239dfa265d39bff">
-                    </div>
-                    <div class="form-group">
-                        <label for="accessToken">Access Token:</label>
-                        <input type="password" id="accessToken" name="accessToken" value="5af85ca86531c3d789f8b5c0bfa41f47">
-                    </div>
-                    <div class="form-group">
-                        <label for="phoneNumberId">Phone Number ID:</label>
-                        <input type="text" id="phoneNumberId" name="phoneNumberId" placeholder="Tu Phone Number ID">
-                    </div>
-                    <button type="submit" class="btn-primary">Guardar configuración</button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal de nuevo chat -->
-    <div class="modal" id="newChatModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Nuevo chat</h2>
-                <span class="close-modal" id="closeNewChatModal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="newChatForm">
-                    <div class="form-group">
-                        <label for="recipientPhone">Número de teléfono:</label>
-                        <input type="text" id="recipientPhone" name="recipientPhone" placeholder="Ej: 5491122334455">
-                        <small>Incluye el código de país sin '+' ni espacios</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="recipientName">Nombre (opcional):</label>
-                        <input type="text" id="recipientName" name="recipientName" placeholder="Nombre del contacto">
-                    </div>
-                    <div class="form-group">
-                        <label for="firstMessage">Primer mensaje (opcional):</label>
-                        <textarea id="firstMessage" name="firstMessage" placeholder="Mensaje inicial"></textarea>
-                    </div>
-                    <button type="submit" class="btn-primary">Iniciar conversación</button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <script src="/js/app.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>

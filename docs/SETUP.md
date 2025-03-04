@@ -1,78 +1,119 @@
-# ConfiguraciÛn de la API de WhatsApp Business
+# Gu√≠a de Configuraci√≥n de MateChat
 
-Este documento explica cÛmo configurar correctamente la integraciÛn con la API de WhatsApp Business.
+Este documento proporciona instrucciones detalladas para configurar y personalizar la aplicaci√≥n MateChat.
 
-## Requisitos previos
+## Configuraci√≥n del Entorno
 
-Para usar la API de WhatsApp Business, necesitas:
+### Variables de entorno
 
-1. Una cuenta de Meta for Developers
-2. Una aplicaciÛn creada en Meta for Developers
-3. Un n˙mero de telÈfono verificado para WhatsApp Business
-
-## Pasos para la configuraciÛn
-
-### 1. Obtener credenciales de la API
-
-Para la integraciÛn de WhatsApp API necesitas los siguientes datos:
-
-- **App ID**: El identificador de tu aplicaciÛn en Meta for Developers (ya configurado: `1157968849126039`)
-- **App Secret**: La clave secreta de tu aplicaciÛn (ya configurado: `e173f3786a59318a4239dfa265d39bff`)
-- **Client Token**: Token de cliente para la autenticaciÛn (ya configurado: `5af85ca86531c3d789f8b5c0bfa41f47`)
-- **Access Token**: Token de acceso para la API de WhatsApp (usado temporalmente el Client Token)
-
-### 2. Configurar el n˙mero de telÈfono
-
-Para completar la integraciÛn, necesitas:
-
-1. Acceder al [Panel de Meta for Developers](https://developers.facebook.com/)
-2. Ir a tu aplicaciÛn > WhatsApp > Getting Started
-3. Seguir el proceso para agregar un n˙mero de telÈfono
-4. Una vez agregado, obtener el Phone Number ID y actualizar en el archivo .env:
+Crea un archivo `.env` en la ra√≠z del proyecto con las siguientes variables:
 
 ```
-WHATSAPP_PHONE_NUMBER_ID=tu_phone_number_id
+PORT=3000
+NODE_ENV=development
+SERVER_URL=http://localhost:3000
+
+# Configuraci√≥n del webhook
+WEBHOOK_URL=
+
+# Tokens de seguridad
+SECURITY_TOKEN=tu_token_seguridad_aqui
 ```
 
-### 3. Configurar Webhooks
+Para producci√≥n, actualiza los valores:
 
-Para recibir mensajes entrantes, necesitas configurar un webhook:
-
-1. En el panel de WhatsApp, ve a la secciÛn "Webhooks"
-2. Configura la URL del webhook a: `https://tu-dominio.com/webhook/whatsapp`
-3. El token de verificaciÛn debe ser el mismo que est· en tu archivo .env:
 ```
-WEBHOOK_VERIFY_TOKEN=matechat_verify_token
-```
-4. Selecciona los campos de suscripciÛn: `messages`
+PORT=3000
+NODE_ENV=production
+SERVER_URL=https://tu-dominio.railway.app
 
-### 4. Obtener un token permanente
+# Configuraci√≥n del webhook
+WEBHOOK_URL=https://tu-webhook.com/recibir
 
-Para uso en producciÛn, debes obtener un token permanente:
-
-1. Ve a System User en Business Settings
-2. Crea un nuevo usuario del sistema
-3. Asigna los permisos necesarios para WhatsApp Business
-4. Genera un token de acceso y actualiza en el archivo .env:
-```
-WHATSAPP_ACCESS_TOKEN=tu_token_permanente
+# Tokens de seguridad
+SECURITY_TOKEN=tu_token_seguridad_muy_seguro
 ```
 
-## ConfiguraciÛn para Railway
+## Configuraci√≥n de WhatsApp Web
 
-Cuando despliegues la aplicaciÛn en Railway, debes configurar las variables de entorno en el panel de Railway con los mismos valores que tienes en tu archivo .env local.
+El cliente de WhatsApp Web se configura en `src/config/whatsapp.js`. Puedes personalizar las opciones del cliente:
 
-## SoluciÛn de problemas
+```javascript
+const client = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: {
+    // Configuraci√≥n personalizada de Puppeteer aqu√≠
+  }
+});
+```
 
-Si encuentras problemas de conexiÛn:
+### Almacenamiento de sesi√≥n
 
-1. Verifica que todas las credenciales estÈn correctamente configuradas
-2. Aseg˙rate de que el n˙mero de telÈfono estÈ verificado y activo
-3. Revisa los logs de la aplicaciÛn para identificar errores especÌficos
-4. Para errores de webhook, verifica que la URL sea accesible p˙blicamente
+Por defecto, la sesi√≥n se almacena localmente con `LocalAuth()`, lo que permite mantener la sesi√≥n activa tras reiniciar la aplicaci√≥n. Para entornos de producci√≥n, considera estas opciones:
 
-## Recursos adicionales
+1. Usar `RemoteAuth` para almacenar la sesi√≥n en una base de datos externa.
+2. Configurar un volumen persistente en Railway para mantener la carpeta `.wwebjs_auth`.
 
-- [DocumentaciÛn oficial de WhatsApp Business API](https://developers.facebook.com/docs/whatsapp/cloud-api/)
-- [GuÌa de inicio r·pido](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started)
-- [Referencia de la API](https://developers.facebook.com/docs/whatsapp/cloud-api/reference/)
+## Endpoints de la API
+
+### API RESTful
+
+| Endpoint | M√©todo | Descripci√≥n |
+|----------|--------|-------------|
+| `/api/status` | GET | Obtiene el estado de la conexi√≥n |
+| `/api/send` | POST | Env√≠a un mensaje a un contacto |
+| `/api/check/:number` | GET | Verifica si un n√∫mero est√° registrado |
+| `/api/send-group` | POST | Env√≠a un mensaje a un grupo |
+
+### Webhook
+
+| Endpoint | M√©todo | Descripci√≥n |
+|----------|--------|-------------|
+| `/webhook/config` | GET | Obtiene la configuraci√≥n actual del webhook |
+| `/webhook/config` | POST | Configura la URL del webhook |
+
+## Seguridad
+
+### Autenticaci√≥n
+
+Todas las rutas est√°n protegidas con un token de seguridad. Este token debe enviarse en cada solicitud mediante:
+
+1. Header: `x-api-key: tu_token_seguridad`
+2. Query parameter: `?token=tu_token_seguridad`
+
+### Mejores pr√°cticas
+
+- Usa un token de seguridad fuerte en producci√≥n
+- Nunca expones el token en el c√≥digo del cliente
+- Usa HTTPS en producci√≥n
+- Limita las direcciones IP que pueden acceder a la API
+
+## Personalizaci√≥n del Frontend
+
+El frontend se encuentra en la carpeta `src/public`. Puedes personalizar:
+
+- `index.html`: Estructura principal
+- `css/styles.css`: Estilos y apariencia
+- `js/app.js`: L√≥gica del cliente
+
+### Plantilla personalizada
+
+Para usar una plantilla personalizada, simplemente reemplaza los archivos en la carpeta `public` con tu dise√±o.
+
+## Integraci√≥n con servicios externos
+
+### Chatbots
+
+Para integrar con un chatbot, configura un webhook y procesa los mensajes entrantes:
+
+1. Configura la URL del webhook en MateChat
+2. Recibe los mensajes en tu servicio de chatbot
+3. Responde usando el endpoint `/api/send`
+
+### CRM y otros sistemas
+
+Puedes integrar MateChat con sistemas CRM y otros servicios:
+
+1. Utiliza los webhooks para recibir mensajes
+2. Usa la API para enviar mensajes desde tu sistema
+3. Implementa un middleware para transformar el formato de los mensajes si es necesario
