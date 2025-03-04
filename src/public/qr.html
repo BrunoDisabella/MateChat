@@ -87,6 +87,10 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script>
+        // Variables para tracking del estado de conexión
+        let isConnected = false;
+        let checkConnectionInterval;
+        
         // Función para obtener parámetros de URL
         function getParameterByName(name, url = window.location.href) {
             name = name.replace(/[\[\]]/g, '\\$&');
@@ -96,6 +100,60 @@
             if (!results[2]) return '';
             return decodeURIComponent(results[2].replace(/\+/g, ' '));
         }
+        
+        // Función para verificar el estado de conexión
+        async function checkConnectionStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                if (data.success && data.status && data.status.connected) {
+                    // Está conectado - mostrar mensaje y redireccionar
+                    clearInterval(checkConnectionInterval);
+                    isConnected = true;
+                    
+                    // Actualizar UI
+                    loadingDiv.textContent = '¡Conectado a WhatsApp!';
+                    loadingDiv.style.color = '#128C7E';
+                    loadingDiv.style.fontWeight = 'bold';
+                    loadingDiv.style.display = 'block';
+                    
+                    // Limpiar QR
+                    qrcodeDiv.innerHTML = '';
+                    
+                    // Mostrar imagen de éxito
+                    const successImg = document.createElement('img');
+                    successImg.src = 'https://img.icons8.com/color/96/000000/checkmark--v1.png';
+                    successImg.alt = 'Conexión exitosa';
+                    successImg.style.width = '100px';
+                    successImg.style.height = '100px';
+                    successImg.style.margin = '20px auto';
+                    successImg.style.display = 'block';
+                    qrcodeDiv.appendChild(successImg);
+                    
+                    // Crear botón para ir a la vista de chats
+                    const goToChatsBtn = document.createElement('a');
+                    goToChatsBtn.href = '/chats';
+                    goToChatsBtn.className = 'button';
+                    goToChatsBtn.textContent = 'Ver mis chats';
+                    goToChatsBtn.style.backgroundColor = '#25D366';
+                    goToChatsBtn.style.display = 'block';
+                    goToChatsBtn.style.margin = '20px auto';
+                    goToChatsBtn.style.width = 'fit-content';
+                    qrcodeDiv.appendChild(goToChatsBtn);
+                    
+                    // Programar redirección automática
+                    setTimeout(() => {
+                        window.location.href = '/chats';
+                    }, 3000);
+                }
+            } catch (error) {
+                console.error('Error al verificar estado de conexión:', error);
+            }
+        }
+        
+        // Iniciar verificación periódica del estado de conexión
+        checkConnectionInterval = setInterval(checkConnectionStatus, 2000);
 
         // Función para obtener datos QR directamente de la API
         async function fetchQrFromApi() {

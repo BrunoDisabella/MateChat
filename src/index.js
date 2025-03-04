@@ -46,6 +46,11 @@ app.get('/qr', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'qr.html'));
 });
 
+// Ruta para la página de chats
+app.get('/chats', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'chats.html'));
+});
+
 // Endpoint para obtener el último código QR disponible
 app.get('/api/qr', (req, res) => {
   if (global.lastQrCode) {
