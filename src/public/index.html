@@ -82,6 +82,21 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script>
+        // Verificar si la biblioteca QRCode está disponible
+        if (!window.QRCode) {
+            // Cargar la biblioteca QRCode alternativamente si no está disponible
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+            script.onload = function() {
+                console.log('QRCode alternativo cargado correctamente');
+            };
+            script.onerror = function() {
+                console.error('Error al cargar QRCode alternativo');
+            };
+            document.head.appendChild(script);
+        }
+    </script>
     <script src="js/app.js"></script>
 </body>
 </html>

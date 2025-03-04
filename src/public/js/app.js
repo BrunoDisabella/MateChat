@@ -1,5 +1,25 @@
-// Conectar al servidor Socket.io
-const socket = io();
+// Conectar al servidor Socket.io con reconexión automática
+const socket = io({
+    reconnectionAttempts: 10,
+    reconnectionDelay: 2000,
+    timeout: 10000,
+    transports: ['websocket', 'polling']
+});
+
+// Registro de eventos de reconexión para depuración
+socket.on('connect_error', (error) => {
+    console.error('Error de conexión Socket.io:', error);
+    connectionInfo.textContent = 'Error de conexión. Intentando reconectar...';
+    statusEl.className = 'status disconnected';
+});
+
+socket.on('reconnect_attempt', (attemptNumber) => {
+    console.log(`Intento de reconexión ${attemptNumber}...`);
+});
+
+socket.on('reconnect', () => {
+    console.log('Reconectado exitosamente');
+});
 
 // Elementos del DOM
 const qrContainer = document.getElementById('qr-container');
@@ -53,19 +73,41 @@ socket.on('qr', (qr) => {
     console.log('QR recibido');
     updateConnectionStatus('connecting', 'Escanea el código QR');
     
-    // Generar código QR en el frontend
-    QRCode.toCanvas(qrCode, qr, { 
-        width: 300,
-        margin: 1,
-        color: {
-            dark: '#128C7E',
-            light: '#FFFFFF'
-        }
-    }, (error) => {
-        if (error) {
-            console.error('Error al generar QR:', error);
-        }
-    });
+    // Limpiar el contenedor de QR antes de generar uno nuevo
+    qrCode.innerHTML = '';
+    
+    // Generar código QR en el frontend con manejo de errores mejorado
+    try {
+        QRCode.toCanvas(qrCode, qr, { 
+            width: 300,
+            margin: 1,
+            color: {
+                dark: '#128C7E',
+                light: '#FFFFFF'
+            }
+        }, (error) => {
+            if (error) {
+                console.error('Error al generar QR con toCanvas:', error);
+                // Método alternativo si toCanvas falla
+                QRCode.toDataURL(qr, { width: 300, margin: 1 }, (err, url) => {
+                    if (err) {
+                        console.error('Error al generar QR con toDataURL:', err);
+                        // Último recurso: mostrar el texto del QR
+                        qrCode.textContent = 'Error al generar QR. Consulta los logs.';
+                    } else {
+                        const img = document.createElement('img');
+                        img.src = url;
+                        img.width = 300;
+                        qrCode.innerHTML = '';
+                        qrCode.appendChild(img);
+                    }
+                });
+            }
+        });
+    } catch (e) {
+        console.error('Error general al generar QR:', e);
+        qrCode.textContent = 'Error al generar QR. Por favor recarga la página.';
+    }
 });
 
 // Escuchar evento cuando el cliente está listo

@@ -45,6 +45,12 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
   console.log('Cliente conectado');
   
+  // Enviar el último código QR si está disponible
+  if (global.lastQrCode) {
+    socket.emit('qr', global.lastQrCode);
+    console.log('Enviando último código QR al cliente conectado');
+  }
+  
   socket.on('disconnect', () => {
     console.log('Cliente desconectado');
   });
@@ -61,7 +67,8 @@ whatsappClient.initialize()
 
 // Iniciar el servidor
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor iniciado en el puerto ${PORT}`);
   console.log(`URL del servidor: ${process.env.SERVER_URL || `http://localhost:${PORT}`}`);
+  console.log(`Modo: ${process.env.NODE_ENV}`);
 });

@@ -7,9 +7,16 @@ const qrcode = require('qrcode-terminal');
  * @returns {Object} - Cliente de WhatsApp Web
  */
 const configureWhatsAppClient = (io) => {
-  // Crear un nuevo cliente con autenticación local
+  console.log('Configurando cliente de WhatsApp...');
+  
+  // Determinar si estamos en producción o desarrollo
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  // Crear un nuevo cliente con autenticación local y configuración optimizada para Railway
   const client = new Client({
-    authStrategy: new LocalAuth(),
+    authStrategy: new LocalAuth({
+      dataPath: './.wwebjs_auth', // Ruta para almacenar la sesión
+    }),
     puppeteer: {
       headless: true,
       args: [
@@ -20,8 +27,16 @@ const configureWhatsAppClient = (io) => {
         '--no-first-run',
         '--no-zygote',
         '--single-process',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-extensions',
+        '--disable-software-rasterizer',
+        '--disable-default-apps',
+        '--ignore-certificate-errors',
+        '--ignore-certificate-errors-spki-list',
+        '--remote-debugging-port=9222'
       ],
+      // Intentar usar chromium en el sistema en lugar de la versión incluida en Railway
+      executablePath: isProduction ? process.env.CHROME_BIN || undefined : undefined,
     }
   });
 
@@ -30,9 +45,13 @@ const configureWhatsAppClient = (io) => {
     console.log('Código QR recibido, escanea con WhatsApp');
     qrcode.generate(qr, { small: true });
     
+    // Guardar el último código QR en una variable global
+    global.lastQrCode = qr;
+    
     // Emitir el código QR al frontend
     if (io) {
       io.emit('qr', qr);
+      console.log('Código QR enviado al frontend');
     }
   });
 
