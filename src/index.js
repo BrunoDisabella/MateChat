@@ -49,9 +49,62 @@ app.get('/qr', (req, res) => {
 // Endpoint para obtener el último código QR disponible
 app.get('/api/qr', (req, res) => {
   if (global.lastQrCode) {
+    // Opcionalmente regenerar el QR si está deformado
+    if (req.query.regenerate === 'true') {
+      try {
+        // Reiniciar el cliente para generar un nuevo QR
+        console.log('Reiniciando cliente para generar nuevo QR...');
+        global.lastQrCode = null; // Limpiar QR actual
+        whatsappClient.destroy().catch(e => console.error('Error al destruir cliente:', e));
+        setTimeout(() => {
+          whatsappClient.initialize().catch(e => console.error('Error al reinicializar cliente:', e));
+        }, 2000);
+        return res.json({ success: true, message: 'Generando nuevo QR, recarga en unos segundos' });
+      } catch (error) {
+        console.error('Error al regenerar QR:', error);
+      }
+    }
     res.json({ success: true, qr: global.lastQrCode });
   } else {
     res.status(404).json({ success: false, message: 'No hay código QR disponible' });
+  }
+});
+
+// Endpoint para forzar la generación de un nuevo QR
+app.get('/api/generate-qr', (req, res) => {
+  try {
+    // Asegurarse de que el cliente esté en un estado limpio
+    global.lastQrCode = null;
+    console.log('Forzando generación de nuevo QR...');
+    
+    // Intentar destruir y reinicializar el cliente
+    whatsappClient.destroy()
+      .then(() => {
+        console.log('Cliente destruido correctamente');
+        setTimeout(() => {
+          whatsappClient.initialize()
+            .then(() => {
+              console.log('Cliente reinicializado correctamente');
+              res.json({ success: true, message: 'Generando nuevo QR, espera unos segundos' });
+            })
+            .catch(err => {
+              console.error('Error al reinicializar cliente:', err);
+              res.status(500).json({ success: false, message: 'Error al reinicializar cliente', error: err.message });
+            });
+        }, 2000);
+      })
+      .catch(err => {
+        console.error('Error al destruir cliente:', err);
+        // Incluso si falla la destrucción, intentar inicializar
+        setTimeout(() => {
+          whatsappClient.initialize()
+            .catch(e => console.error('Error al reinicializar después de fallo en destroy:', e));
+        }, 2000);
+        res.json({ success: true, message: 'Intentando generar nuevo QR (con errores). Intenta recargar en 10 segundos' });
+      });
+  } catch (error) {
+    console.error('Error al regenerar QR:', error);
+    res.status(500).json({ success: false, message: 'Error al regenerar QR', error: error.message });
   }
 });
 
