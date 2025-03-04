@@ -27,6 +27,46 @@ module.exports = (whatsappService) => {
     const status = whatsappService.getStatus();
     res.json(status);
   });
+  
+  // Ruta para obtener todos los chats
+  router.get('/chats', verifyToken, async (req, res) => {
+    try {
+      const result = await whatsappService.getAllChats();
+      res.json(result);
+    } catch (error) {
+      console.error('Error en /api/chats:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error al obtener chats', 
+        error: error.message 
+      });
+    }
+  });
+  
+  // Ruta para obtener mensajes de un chat específico
+  router.get('/chats/:chatId/messages', verifyToken, async (req, res) => {
+    const { chatId } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+    
+    if (!chatId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Se requiere ID de chat' 
+      });
+    }
+    
+    try {
+      const result = await whatsappService.getChatMessages(chatId, limit);
+      res.json(result);
+    } catch (error) {
+      console.error('Error en /api/chats/:chatId/messages:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error al obtener mensajes', 
+        error: error.message 
+      });
+    }
+  });
 
   // Ruta para enviar mensaje
   router.post('/send', verifyToken, async (req, res) => {

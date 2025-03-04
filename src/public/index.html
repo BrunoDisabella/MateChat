@@ -25,7 +25,48 @@
                 <p>Escanea el código QR con WhatsApp para conectarte</p>
             </div>
 
-            <div class="features">
+            <!-- Contenedor de chat (visible cuando está conectado) -->
+            <div id="chat-interface" class="chat-container hidden">
+                <!-- Sidebar con lista de chats -->
+                <div class="chat-sidebar">
+                    <ul id="chat-list" class="chat-list">
+                        <!-- Los chats se cargarán aquí dinámicamente -->
+                    </ul>
+                </div>
+                
+                <!-- Panel de mensajes -->
+                <div class="chat-messages">
+                    <!-- Header del chat actual -->
+                    <div id="chat-header" class="chat-header">
+                        <div class="chat-avatar">
+                            <div class="default-avatar"><i class="fas fa-user"></i></div>
+                        </div>
+                        <div class="chat-header-info">
+                            <div id="current-chat-name" class="chat-header-name">Selecciona un chat</div>
+                            <div id="current-chat-status" class="chat-header-status"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contenedor de mensajes -->
+                    <div id="messages-container" class="messages-container">
+                        <div id="chat-placeholder" class="chat-placeholder">
+                            <i class="fas fa-comments" style="font-size: 3rem; margin-bottom: 20px;"></i>
+                            <p>Selecciona un chat para ver los mensajes</p>
+                        </div>
+                        <!-- Los mensajes se cargarán aquí dinámicamente -->
+                    </div>
+                    
+                    <!-- Formulario para enviar mensajes -->
+                    <div id="message-input-container" class="message-input-container">
+                        <input type="text" id="message-input" class="message-input" placeholder="Escribe un mensaje..." disabled>
+                        <button id="send-message-btn" class="send-button" disabled>
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="features" id="features-section">
                 <h2>Características</h2>
                 <ul>
                     <li><i class="fas fa-check"></i> Conexión mediante código QR</li>

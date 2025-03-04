@@ -4,6 +4,107 @@
 class WhatsAppService {
   constructor(client) {
     this.client = client;
+    this.chatCache = {}; // Caché para almacenar información de chats
+  }
+  
+  /**
+   * Obtiene todos los chats del usuario
+   * @returns {Promise<Array>} - Lista de chats
+   */
+  async getAllChats() {
+    try {
+      const chats = await this.client.getChats();
+      
+      // Mapear chats para incluir solo la información necesaria
+      const formattedChats = await Promise.all(chats.map(async (chat) => {
+        const lastMessage = chat.lastMessage ? {
+          body: chat.lastMessage.body,
+          timestamp: chat.lastMessage.timestamp,
+          fromMe: chat.lastMessage.fromMe
+        } : null;
+        
+        let profilePic = null;
+        try {
+          if (!chat.isGroup) {
+            profilePic = await this.client.getProfilePicUrl(chat.id._serialized);
+          }
+        } catch (err) {
+          console.log(`No se pudo obtener foto de perfil para ${chat.name}`);
+        }
+        
+        return {
+          id: chat.id._serialized,
+          name: chat.name,
+          isGroup: chat.isGroup,
+          unreadCount: chat.unreadCount,
+          timestamp: chat.timestamp,
+          lastMessage,
+          profilePic
+        };
+      }));
+      
+      // Ordenar chats por timestamp descendente (más recientes primero)
+      formattedChats.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      
+      // Almacenar en caché
+      this.chatCache = formattedChats.reduce((acc, chat) => {
+        acc[chat.id] = chat;
+        return acc;
+      }, {});
+      
+      return {
+        success: true,
+        chats: formattedChats
+      };
+    } catch (error) {
+      console.error('Error al obtener chats:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Error al obtener chats'
+      };
+    }
+  }
+  
+  /**
+   * Obtiene los mensajes de un chat específico
+   * @param {string} chatId - ID del chat
+   * @param {number} limit - Número de mensajes a obtener (defecto: 50)
+   * @returns {Promise<Array>} - Lista de mensajes
+   */
+  async getChatMessages(chatId, limit = 50) {
+    try {
+      const chat = await this.client.getChatById(chatId);
+      const messages = await chat.fetchMessages({ limit });
+      
+      // Mapear mensajes para incluir solo la información necesaria
+      const formattedMessages = messages.map(msg => ({
+        id: msg.id._serialized,
+        body: msg.body,
+        timestamp: msg.timestamp,
+        fromMe: msg.fromMe,
+        hasMedia: msg.hasMedia,
+        type: msg.type,
+        sender: msg.from
+      }));
+      
+      return {
+        success: true,
+        messages: formattedMessages,
+        chatInfo: this.chatCache[chatId] || {
+          id: chatId,
+          name: chat.name,
+          isGroup: chat.isGroup
+        }
+      };
+    } catch (error) {
+      console.error('Error al obtener mensajes de chat:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Error al obtener mensajes'
+      };
+    }
   }
 
   /**
