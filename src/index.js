@@ -48,8 +48,25 @@ io.on('connection', (socket) => {
   // Enviar el último código QR si está disponible
   if (global.lastQrCode) {
     socket.emit('qr', global.lastQrCode);
+    socket.emit('status', { status: 'connecting', message: 'Escanea el código QR con WhatsApp' });
     console.log('Enviando último código QR al cliente conectado');
+  } else {
+    // Si no hay QR pero el cliente está ya inicializado, enviar estado conectado
+    if (whatsappClient.info) {
+      socket.emit('ready', { status: 'ready', message: 'Cliente WhatsApp está listo y conectado!' });
+      console.log('Enviando estado conectado al cliente');
+    } else {
+      // Inicializando, esperando QR
+      socket.emit('status', { status: 'connecting', message: 'Esperando código QR...' });
+    }
   }
+  
+  socket.on('requestQR', () => {
+    console.log('Cliente solicitó un nuevo código QR');
+    if (global.lastQrCode) {
+      socket.emit('qr', global.lastQrCode);
+    }
+  });
   
   socket.on('disconnect', () => {
     console.log('Cliente desconectado');

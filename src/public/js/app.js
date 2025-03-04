@@ -279,6 +279,11 @@ function formatTime(date) {
 socket.on('connect', () => {
     console.log('Conectado al servidor Socket.io');
     updateConnectionStatus('connecting', 'Esperando código QR...');
+    
+    // Solicitar explícitamente el código QR al servidor
+    setTimeout(() => {
+        socket.emit('requestQR');
+    }, 1000);
 });
 
 socket.on('disconnect', () => {
@@ -286,45 +291,106 @@ socket.on('disconnect', () => {
     updateConnectionStatus('disconnected', 'Desconectado');
 });
 
+// Evento para actualizaciones de estado
+socket.on('status', (data) => {
+    console.log('Estado actualizado:', data);
+    updateConnectionStatus(data.status, data.message);
+});
+
 // Escuchar evento de código QR
 socket.on('qr', (qr) => {
-    console.log('QR recibido');
+    console.log('QR recibido en el cliente');
     updateConnectionStatus('connecting', 'Escanea el código QR');
     
     // Limpiar el contenedor de QR antes de generar uno nuevo
     qrCode.innerHTML = '';
     
-    // Generar código QR en el frontend con manejo de errores mejorado
+    // Generar código QR en el frontend con múltiples métodos de fallback
     try {
-        QRCode.toCanvas(qrCode, qr, { 
-            width: 300,
-            margin: 1,
-            color: {
-                dark: '#128C7E',
-                light: '#FFFFFF'
-            }
-        }, (error) => {
-            if (error) {
-                console.error('Error al generar QR con toCanvas:', error);
-                // Método alternativo si toCanvas falla
-                QRCode.toDataURL(qr, { width: 300, margin: 1 }, (err, url) => {
-                    if (err) {
-                        console.error('Error al generar QR con toDataURL:', err);
-                        // Último recurso: mostrar el texto del QR
-                        qrCode.textContent = 'Error al generar QR. Consulta los logs.';
-                    } else {
-                        const img = document.createElement('img');
-                        img.src = url;
-                        img.width = 300;
-                        qrCode.innerHTML = '';
-                        qrCode.appendChild(img);
+        // Método 1: Usar la biblioteca QRCode con canvas
+        if (window.QRCode && typeof QRCode.toCanvas === 'function') {
+            try {
+                QRCode.toCanvas(qrCode, qr, { 
+                    width: 300,
+                    margin: 1,
+                    color: {
+                        dark: '#128C7E',
+                        light: '#FFFFFF'
+                    }
+                }, (error) => {
+                    if (error) {
+                        throw new Error('Error en toCanvas: ' + error.message);
                     }
                 });
+                console.log('QR generado con QRCode.toCanvas');
+                return;
+            } catch (canvasError) {
+                console.error('Error al generar QR con toCanvas:', canvasError);
+                // Continuar con el siguiente método
             }
-        });
+        }
+        
+        // Método 2: Usar dataURL
+        if (window.QRCode && typeof QRCode.toDataURL === 'function') {
+            try {
+                QRCode.toDataURL(qr, { width: 300, margin: 1 }, (err, url) => {
+                    if (err) {
+                        throw new Error('Error en toDataURL: ' + err.message);
+                    }
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.width = 300;
+                    qrCode.innerHTML = '';
+                    qrCode.appendChild(img);
+                    console.log('QR generado con QRCode.toDataURL');
+                });
+                return;
+            } catch (dataUrlError) {
+                console.error('Error al generar QR con toDataURL:', dataUrlError);
+                // Continuar con el siguiente método
+            }
+        }
+        
+        // Método 3: Usar API externa para generar QR
+        try {
+            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+            const img = document.createElement('img');
+            img.src = qrApiUrl;
+            img.width = 300;
+            img.alt = 'Código QR de WhatsApp';
+            qrCode.innerHTML = '';
+            qrCode.appendChild(img);
+            console.log('QR generado con API externa');
+            return;
+        } catch (apiError) {
+            console.error('Error al generar QR con API externa:', apiError);
+            // Último método de fallback
+        }
+        
+        // Método 4: Mostrar enlace al QR
+        qrCode.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <p>No se pudo generar el código QR en el navegador.</p>
+                <p>Puedes usar este enlace para ver el código:</p>
+                <a href="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}" 
+                   target="_blank" style="color: #128C7E; font-weight: bold;">
+                   Abrir código QR en nueva ventana
+                </a>
+            </div>
+        `;
+        console.log('Generando enlace al QR como fallback');
+        
     } catch (e) {
         console.error('Error general al generar QR:', e);
-        qrCode.textContent = 'Error al generar QR. Por favor recarga la página.';
+        qrCode.innerHTML = `
+            <div style="color: red; padding: 20px; text-align: center;">
+                <p>Error al generar QR: ${e.message}</p>
+                <p>Por favor recarga la página o intenta con otro navegador.</p>
+                <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px;">
+                    Recargar página
+                </button>
+            </div>
+        `;
     }
 });
 
@@ -336,6 +402,15 @@ socket.on('ready', (data) => {
     
     // Limpiar el contenedor de QR
     qrCode.innerHTML = '';
+    
+    // Mostrar el botón de desconexión
+    if (logoutBtn) {
+        logoutBtn.classList.remove('hidden');
+        logoutBtn.style.display = 'inline-flex';
+        console.log('Botón de desconexión mostrado');
+    } else {
+        console.error('No se encontró el botón de desconexión');
+    }
 });
 
 // Escuchar evento de desconexión de WhatsApp
@@ -377,43 +452,51 @@ messageInput.addEventListener('keypress', (e) => {
     }
 });
 
-// Manejar clic en botón de desconexión
-logoutBtn.addEventListener('click', async () => {
-    if (!isConnected) return;
+// Verificar si el botón de logout existe y está cargado
+if (logoutBtn) {
+    console.log('Botón de logout encontrado y configurado');
     
-    const confirmLogout = confirm('¿Estás seguro de que deseas cerrar la sesión de WhatsApp?');
-    if (!confirmLogout) return;
-    
-    try {
-        logoutBtn.disabled = true;
-        logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Desconectando...';
-        connectionInfo.textContent = 'Cerrando sesión...';
+    // Manejar clic en botón de desconexión
+    logoutBtn.addEventListener('click', async () => {
+        console.log('Botón de desconexión clickeado');
+        if (!isConnected) return;
         
-        const response = await fetch('/api/logout', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
+        const confirmLogout = confirm('¿Estás seguro de que deseas cerrar la sesión de WhatsApp?');
+        if (!confirmLogout) return;
+        
+        try {
+            logoutBtn.disabled = true;
+            logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Desconectando...';
+            connectionInfo.textContent = 'Cerrando sesión...';
+            
+            const response = await fetch('/api/logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                console.log('Sesión cerrada correctamente');
+                // La actualización de la UI se hará cuando se reciba el evento de desconexión
+            } else {
+                console.error('Error al cerrar sesión:', data.message);
+                connectionInfo.textContent = `Error al cerrar sesión: ${data.message}`;
+                logoutBtn.disabled = false;
+                logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Desconectar';
             }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            console.log('Sesión cerrada correctamente');
-            // La actualización de la UI se hará cuando se reciba el evento de desconexión
-        } else {
-            console.error('Error al cerrar sesión:', data.message);
-            connectionInfo.textContent = `Error al cerrar sesión: ${data.message}`;
+        } catch (error) {
+            console.error('Error al cerrar sesión:', error);
+            connectionInfo.textContent = `Error al cerrar sesión: ${error.message}`;
             logoutBtn.disabled = false;
             logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Desconectar';
         }
-    } catch (error) {
-        console.error('Error al cerrar sesión:', error);
-        connectionInfo.textContent = `Error al cerrar sesión: ${error.message}`;
-        logoutBtn.disabled = false;
-        logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Desconectar';
-    }
-});
+    });
+} else {
+    console.error('No se encontró el botón de logout, verificar ID y DOM');
+}
 
 // Función para enviar mensaje en la interfaz de chat
 async function sendMessage() {

@@ -51,7 +51,8 @@ const configureWhatsAppClient = (io) => {
     // Emitir el código QR al frontend
     if (io) {
       io.emit('qr', qr);
-      console.log('Código QR enviado al frontend');
+      io.emit('status', { status: 'connecting', message: 'Escanea el código QR con WhatsApp' });
+      console.log('Código QR enviado al frontend:', qr.substring(0, 20) + '...');
     }
   });
 
