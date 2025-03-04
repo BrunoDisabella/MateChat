@@ -306,6 +306,27 @@ socket.on('qr', (qr) => {
     try {
         localStorage.setItem('lastQrCode', qr);
         console.log('QR guardado en localStorage para recuperación');
+        
+        // Añadir un enlace a la página de visualización QR dedicada
+        const qrPageLink = document.createElement('a');
+        qrPageLink.href = `/qr?data=${encodeURIComponent(qr)}`;
+        qrPageLink.className = 'button';
+        qrPageLink.style.backgroundColor = '#34B7F1';
+        qrPageLink.style.color = 'white';
+        qrPageLink.style.padding = '8px 16px';
+        qrPageLink.style.borderRadius = '5px';
+        qrPageLink.style.textDecoration = 'none';
+        qrPageLink.style.display = 'block';
+        qrPageLink.style.margin = '10px auto';
+        qrPageLink.style.width = 'fit-content';
+        qrPageLink.target = '_blank';
+        qrPageLink.textContent = 'Ver QR en página dedicada';
+        
+        // Insertamos el enlace en el contenedor de QR
+        if (!document.getElementById('qr-page-link')) {
+            qrPageLink.id = 'qr-page-link';
+            qrCode.parentNode.insertBefore(qrPageLink, qrCode.nextSibling);
+        }
     } catch (storageError) {
         console.error('No se pudo guardar QR en localStorage:', storageError);
     }

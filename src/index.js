@@ -41,6 +41,20 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Ruta específica para visualización del código QR
+app.get('/qr', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'qr.html'));
+});
+
+// Endpoint para obtener el último código QR disponible
+app.get('/api/qr', (req, res) => {
+  if (global.lastQrCode) {
+    res.json({ success: true, qr: global.lastQrCode });
+  } else {
+    res.status(404).json({ success: false, message: 'No hay código QR disponible' });
+  }
+});
+
 // Socket.io eventos
 io.on('connection', (socket) => {
   console.log('Cliente conectado');

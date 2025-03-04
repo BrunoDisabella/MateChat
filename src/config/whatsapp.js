@@ -45,14 +45,22 @@ const configureWhatsAppClient = (io) => {
     console.log('Código QR recibido, escanea con WhatsApp');
     qrcode.generate(qr, { small: true });
     
+    console.log('========== INICIO DEL CÓDIGO QR ==========');
+    console.log(qr);
+    console.log('========== FIN DEL CÓDIGO QR ==========');
+    
     // Guardar el último código QR en una variable global
     global.lastQrCode = qr;
+    
+    // También imprimir la URL donde se puede ver directamente
+    const baseUrl = process.env.SERVER_URL || `http://localhost:${process.env.PORT || 3000}`;
+    console.log(`\nVer QR en: ${baseUrl}/qr\n`);
     
     // Emitir el código QR al frontend
     if (io) {
       io.emit('qr', qr);
       io.emit('status', { status: 'connecting', message: 'Escanea el código QR con WhatsApp' });
-      console.log('Código QR enviado al frontend:', qr.substring(0, 20) + '...');
+      console.log('Código QR enviado al frontend. Longitud:', qr.length);
     }
   });
 
