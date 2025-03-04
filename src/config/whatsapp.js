@@ -59,6 +59,9 @@ const configureWhatsAppClient = (io) => {
   client.on('ready', () => {
     console.log('Cliente WhatsApp está listo y conectado!');
     
+    // Limpiar el código QR global cuando ya está conectado
+    global.lastQrCode = null;
+    
     // Notificar al frontend que el cliente está conectado
     if (io) {
       io.emit('ready', { status: 'ready', message: 'Cliente WhatsApp está listo y conectado!' });
@@ -69,10 +72,21 @@ const configureWhatsAppClient = (io) => {
   client.on('disconnected', (reason) => {
     console.log('Cliente WhatsApp desconectado:', reason);
     
+    // Limpiar el código QR almacenado
+    global.lastQrCode = null;
+    
     // Notificar al frontend
     if (io) {
       io.emit('disconnected', { status: 'disconnected', message: 'Se ha desconectado WhatsApp', reason });
     }
+    
+    // Inicializar nuevamente el cliente después de un breve retraso
+    setTimeout(() => {
+      console.log('Reiniciando cliente después de desconexión...');
+      client.initialize().catch(err => {
+        console.error('Error al reiniciar cliente después de desconexión:', err);
+      });
+    }, 3000);
   });
 
   // Evento para nuevos mensajes recibidos

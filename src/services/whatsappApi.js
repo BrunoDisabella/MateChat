@@ -8,6 +8,40 @@ class WhatsAppService {
   }
   
   /**
+   * Desconecta el cliente de WhatsApp
+   * @returns {Promise<Object>} - Resultado de la desconexión
+   */
+  async logout() {
+    try {
+      await this.client.logout();
+      
+      return {
+        success: true,
+        message: 'Sesión cerrada correctamente'
+      };
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      
+      // Si falla el logout normal, intentar forzar la desconexión
+      try {
+        await this.client.destroy();
+        
+        return {
+          success: true,
+          message: 'Sesión forzada a cerrar correctamente'
+        };
+      } catch (destroyError) {
+        console.error('Error al forzar cierre de sesión:', destroyError);
+        return {
+          success: false,
+          error: error.message || 'Error desconocido',
+          message: 'No se pudo cerrar la sesión'
+        };
+      }
+    }
+  }
+  
+  /**
    * Obtiene todos los chats del usuario
    * @returns {Promise<Array>} - Lista de chats
    */

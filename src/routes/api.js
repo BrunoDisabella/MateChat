@@ -28,6 +28,21 @@ module.exports = (whatsappService) => {
     res.json(status);
   });
   
+  // Ruta para cerrar sesión (logout)
+  router.post('/logout', verifyToken, async (req, res) => {
+    try {
+      const result = await whatsappService.logout();
+      res.json(result);
+    } catch (error) {
+      console.error('Error en /api/logout:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error al cerrar sesión', 
+        error: error.message 
+      });
+    }
+  });
+  
   // Ruta para obtener todos los chats
   router.get('/chats', verifyToken, async (req, res) => {
     try {

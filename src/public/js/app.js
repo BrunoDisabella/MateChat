@@ -46,6 +46,7 @@ const currentChatName = document.getElementById('current-chat-name');
 const currentChatStatus = document.getElementById('current-chat-status');
 const messageInput = document.getElementById('message-input');
 const sendMessageBtn = document.getElementById('send-message-btn');
+const logoutBtn = document.getElementById('logout-btn');
 
 // Variables para gestionar el chat
 let chats = [];
@@ -66,6 +67,9 @@ function updateConnectionStatus(status, message) {
         featuresSection.classList.add('hidden');
         messageForm.classList.add('hidden');
         
+        // Mostrar botón de desconexión
+        logoutBtn.classList.remove('hidden');
+        
         // Cargar los chats
         loadChats();
     } else if (status === 'disconnected') {
@@ -75,12 +79,18 @@ function updateConnectionStatus(status, message) {
         featuresSection.classList.remove('hidden');
         messageForm.classList.add('hidden');
         connectionInfo.textContent = '';
+        
+        // Ocultar botón de desconexión
+        logoutBtn.classList.add('hidden');
     } else if (status === 'connecting') {
         isConnected = false;
         qrContainer.classList.remove('hidden');
         chatInterface.classList.add('hidden');
         featuresSection.classList.remove('hidden');
         messageForm.classList.add('hidden');
+        
+        // Ocultar botón de desconexión
+        logoutBtn.classList.add('hidden');
     }
 }
 
@@ -333,6 +343,11 @@ socket.on('disconnected', (data) => {
     console.log('WhatsApp desconectado:', data);
     updateConnectionStatus('disconnected', 'Desconectado de WhatsApp');
     connectionInfo.textContent = data.reason || 'La sesión ha finalizado';
+    
+    // Limpiar datos de estado
+    chats = [];
+    currentChat = null;
+    currentChatMessages = [];
 });
 
 // Escuchar evento de nuevo mensaje
@@ -359,6 +374,44 @@ messageInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
+    }
+});
+
+// Manejar clic en botón de desconexión
+logoutBtn.addEventListener('click', async () => {
+    if (!isConnected) return;
+    
+    const confirmLogout = confirm('¿Estás seguro de que deseas cerrar la sesión de WhatsApp?');
+    if (!confirmLogout) return;
+    
+    try {
+        logoutBtn.disabled = true;
+        logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Desconectando...';
+        connectionInfo.textContent = 'Cerrando sesión...';
+        
+        const response = await fetch('/api/logout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log('Sesión cerrada correctamente');
+            // La actualización de la UI se hará cuando se reciba el evento de desconexión
+        } else {
+            console.error('Error al cerrar sesión:', data.message);
+            connectionInfo.textContent = `Error al cerrar sesión: ${data.message}`;
+            logoutBtn.disabled = false;
+            logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Desconectar';
+        }
+    } catch (error) {
+        console.error('Error al cerrar sesión:', error);
+        connectionInfo.textContent = `Error al cerrar sesión: ${error.message}`;
+        logoutBtn.disabled = false;
+        logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Desconectar';
     }
 });
 
