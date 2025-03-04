@@ -299,16 +299,55 @@ socket.on('status', (data) => {
 
 // Escuchar evento de código QR
 socket.on('qr', (qr) => {
-    console.log('QR recibido en el cliente');
+    console.log('QR recibido en el cliente, longitud:', qr.length);
     updateConnectionStatus('connecting', 'Escanea el código QR');
+    
+    // Almacenar el QR en almacenamiento local para depuración y recuperación
+    try {
+        localStorage.setItem('lastQrCode', qr);
+        console.log('QR guardado en localStorage para recuperación');
+    } catch (storageError) {
+        console.error('No se pudo guardar QR en localStorage:', storageError);
+    }
     
     // Limpiar el contenedor de QR antes de generar uno nuevo
     qrCode.innerHTML = '';
     
+    // Variable para rastrear si alguno de los métodos ha tenido éxito
+    let qrSuccess = false;
+    
     // Generar código QR en el frontend con múltiples métodos de fallback
     try {
-        // Método 1: Usar la biblioteca QRCode con canvas
-        if (window.QRCode && typeof QRCode.toCanvas === 'function') {
+        // MÉTODO 0: Usar la función directa si existe (desde index.html)
+        if (window.showQrDirectly && typeof window.showQrDirectly === 'function') {
+            qrSuccess = window.showQrDirectly(qr, 'qr-code');
+            if (qrSuccess) {
+                console.log('QR generado con función directa del índice');
+                return;
+            }
+        }
+        
+        // MÉTODO 1: Usar QRCode constructor (davidshimjs/qrcodejs)
+        if (!qrSuccess && typeof QRCode === 'function') {
+            try {
+                qrCode.innerHTML = ''; // Asegurar que está vacío
+                new QRCode(qrCode, {
+                    text: qr,
+                    width: 300,
+                    height: 300,
+                    colorDark: "#128C7E",
+                    colorLight: "#ffffff",
+                });
+                console.log('QR generado con QRCode constructor');
+                qrSuccess = true;
+                return;
+            } catch (constructorError) {
+                console.error('Error al generar QR con constructor:', constructorError);
+            }
+        }
+        
+        // MÉTODO 2: Usar la biblioteca QRCode con canvas
+        if (!qrSuccess && window.QRCode && typeof QRCode.toCanvas === 'function') {
             try {
                 QRCode.toCanvas(qrCode, qr, { 
                     width: 300,
@@ -320,18 +359,24 @@ socket.on('qr', (qr) => {
                 }, (error) => {
                     if (error) {
                         throw new Error('Error en toCanvas: ' + error.message);
+                    } else {
+                        console.log('QR generado con QRCode.toCanvas');
+                        qrSuccess = true;
                     }
                 });
-                console.log('QR generado con QRCode.toCanvas');
-                return;
+                
+                if (qrCode.children.length > 0) {
+                    console.log('Canvas QR creado correctamente');
+                    qrSuccess = true;
+                    return;
+                }
             } catch (canvasError) {
                 console.error('Error al generar QR con toCanvas:', canvasError);
-                // Continuar con el siguiente método
             }
         }
         
-        // Método 2: Usar dataURL
-        if (window.QRCode && typeof QRCode.toDataURL === 'function') {
+        // MÉTODO 3: Usar dataURL
+        if (!qrSuccess && window.QRCode && typeof QRCode.toDataURL === 'function') {
             try {
                 QRCode.toDataURL(qr, { width: 300, margin: 1 }, (err, url) => {
                     if (err) {
@@ -343,49 +388,83 @@ socket.on('qr', (qr) => {
                     qrCode.innerHTML = '';
                     qrCode.appendChild(img);
                     console.log('QR generado con QRCode.toDataURL');
+                    qrSuccess = true;
                 });
+                
+                // Si hay una promesa en curso para dataURL, esperemos un poco
+                setTimeout(() => {
+                    if (qrCode.children.length > 0 && !qrSuccess) {
+                        console.log('DataURL QR parecía funcionar');
+                        qrSuccess = true;
+                        return;
+                    }
+                    
+                    // Si todavía no hay éxito, continuar con métodos alternativos
+                    if (!qrSuccess) continueWithAlternatives();
+                }, 500);
+                
                 return;
             } catch (dataUrlError) {
                 console.error('Error al generar QR con toDataURL:', dataUrlError);
-                // Continuar con el siguiente método
             }
         }
         
-        // Método 3: Usar API externa para generar QR
-        try {
-            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
-            const img = document.createElement('img');
-            img.src = qrApiUrl;
-            img.width = 300;
-            img.alt = 'Código QR de WhatsApp';
-            qrCode.innerHTML = '';
-            qrCode.appendChild(img);
-            console.log('QR generado con API externa');
-            return;
-        } catch (apiError) {
-            console.error('Error al generar QR con API externa:', apiError);
-            // Último método de fallback
+        // Función para continuar con métodos alternativos
+        function continueWithAlternatives() {
+            if (qrSuccess) return;
+            
+            // MÉTODO 4: Usar API externa para generar QR
+            try {
+                const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+                const img = document.createElement('img');
+                img.src = qrApiUrl;
+                img.width = 300;
+                img.alt = 'Código QR de WhatsApp';
+                qrCode.innerHTML = '';
+                qrCode.appendChild(img);
+                console.log('QR generado con API externa');
+                qrSuccess = true;
+                return;
+            } catch (apiError) {
+                console.error('Error al generar QR con API externa:', apiError);
+            }
+            
+            // MÉTODO 5: Mostrar enlace al QR y datos en texto
+            if (!qrSuccess) {
+                qrCode.innerHTML = `
+                    <div style="text-align: center; padding: 20px;">
+                        <p>No se pudo generar el código QR en el navegador.</p>
+                        <p>Puedes usar este enlace para ver el código:</p>
+                        <a href="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}" 
+                           target="_blank" style="color: #128C7E; font-weight: bold; display: block; margin-bottom: 20px;">
+                           <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}" 
+                           width="300" height="300" alt="Código QR">
+                        </a>
+                        <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px;">
+                            Recargar página
+                        </button>
+                    </div>
+                `;
+                console.log('Generando enlace al QR como fallback');
+                qrSuccess = true;
+            }
         }
         
-        // Método 4: Mostrar enlace al QR
-        qrCode.innerHTML = `
-            <div style="text-align: center; padding: 20px;">
-                <p>No se pudo generar el código QR en el navegador.</p>
-                <p>Puedes usar este enlace para ver el código:</p>
-                <a href="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}" 
-                   target="_blank" style="color: #128C7E; font-weight: bold;">
-                   Abrir código QR en nueva ventana
-                </a>
-            </div>
-        `;
-        console.log('Generando enlace al QR como fallback');
+        // Si llegamos hasta aquí y no hay éxito, probar métodos alternativos
+        if (!qrSuccess) {
+            continueWithAlternatives();
+        }
         
     } catch (e) {
         console.error('Error general al generar QR:', e);
+        
+        // Último recurso: mostrar QR con API externa y botón de reintento
         qrCode.innerHTML = `
-            <div style="color: red; padding: 20px; text-align: center;">
-                <p>Error al generar QR: ${e.message}</p>
-                <p>Por favor recarga la página o intenta con otro navegador.</p>
+            <div style="text-align: center; padding: 20px;">
+                <p style="color: red;">Hubo un error al generar el código QR localmente.</p>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}" 
+                   width="300" height="300" alt="Código QR">
+                <p>Si no puedes ver el QR, intenta recargar la página.</p>
                 <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px;">
                     Recargar página
                 </button>

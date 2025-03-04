@@ -73,13 +73,55 @@ io.on('connection', (socket) => {
   });
 });
 
+// Variable para rastrear si necesitamos reintentar generar QR
+let needQrRetry = false;
+
+// Función para reintentar generar QR si es necesario
+const checkAndRetryQR = () => {
+  if (needQrRetry && !global.lastQrCode) {
+    console.log('Reintentando inicialización del cliente para generar QR...');
+    try {
+      // Reinicializar el cliente para intentar obtener un nuevo QR
+      whatsappClient.initialize()
+        .then(() => {
+          console.log('Re-inicialización del cliente WhatsApp completada');
+          needQrRetry = false;
+        })
+        .catch(err => {
+          console.error('Error al re-inicializar el cliente WhatsApp:', err);
+          // Programar otro intento en 5 segundos
+          setTimeout(checkAndRetryQR, 5000);
+        });
+    } catch (error) {
+      console.error('Error al reintentar inicialización:', error);
+    }
+  } else {
+    // Si hay un QR, no necesitamos reintentar
+    needQrRetry = false;
+  }
+};
+
 // Iniciar el cliente de WhatsApp
 whatsappClient.initialize()
   .then(() => {
     console.log('Inicialización del cliente WhatsApp completada');
+    
+    // Verificar si tenemos QR después de 3 segundos
+    setTimeout(() => {
+      if (!global.lastQrCode && !whatsappClient.info) {
+        console.log('No se detectó código QR después de inicialización, programando reintento...');
+        needQrRetry = true;
+        checkAndRetryQR();
+      }
+    }, 3000);
   })
   .catch(err => {
     console.error('Error al inicializar el cliente WhatsApp:', err);
+    
+    // Programar reintento en caso de error
+    console.log('Programando reintento de inicialización en 5 segundos...');
+    needQrRetry = true;
+    setTimeout(checkAndRetryQR, 5000);
   });
 
 // Iniciar el servidor

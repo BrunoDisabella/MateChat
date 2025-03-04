@@ -127,21 +127,53 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <!-- Cargar múltiples bibliotecas QR para mayor compatibilidad -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    
     <script>
-        // Verificar si la biblioteca QRCode está disponible
-        if (!window.QRCode) {
-            // Cargar la biblioteca QRCode alternativamente si no está disponible
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-            script.onload = function() {
-                console.log('QRCode alternativo cargado correctamente');
-            };
-            script.onerror = function() {
-                console.error('Error al cargar QRCode alternativo');
-            };
-            document.head.appendChild(script);
-        }
+        // Función para mostrar un QR directamente con una biblioteca específica 
+        // (se usará si todas las otras fallan en app.js)
+        window.showQrDirectly = function(qrData, elementId) {
+            console.log("Intentando mostrar QR directamente con método alternativo");
+            const container = document.getElementById(elementId);
+            if (!container) return false;
+            
+            // Limpiar contenedor
+            container.innerHTML = '';
+            
+            try {
+                // Opción 1: Usar QRCode.js (davidshimjs)
+                if (typeof QRCode === 'function') {
+                    new QRCode(container, {
+                        text: qrData,
+                        width: 300,
+                        height: 300,
+                        colorDark: "#128C7E",
+                        colorLight: "#ffffff",
+                    });
+                    return true;
+                }
+            } catch (e) {
+                console.error("Error con biblioteca QRCode estándar:", e);
+                
+                // Opción 2: Mostrar imagen QR de API externa
+                try {
+                    const img = document.createElement('img');
+                    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`;
+                    img.width = 300;
+                    img.height = 300;
+                    img.alt = "Código QR de WhatsApp";
+                    container.appendChild(img);
+                    return true;
+                } catch (e2) {
+                    console.error("Error al mostrar QR con API externa:", e2);
+                    return false;
+                }
+            }
+            return false;
+        };
     </script>
     <script src="js/app.js"></script>
 </body>
