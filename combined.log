@@ -1,0 +1,83 @@
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"level":"info","message":"Servidor ejecutándose en el puerto 3000"}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:50:46.530Z","error":{"data":{"location":"atn","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:50:51.134Z","error":{"data":{"location":"rva","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:50:56.060Z","error":{"data":{"location":"rva","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:01.287Z","error":{"data":{"location":"vll","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:04.140Z","error":{"data":{"location":"atn","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:09.874Z","error":{"data":{"location":"atn","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:11.615Z","error":{"data":{"location":"cco","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:14.695Z","error":{"data":{"location":"rva","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:20.128Z","error":{"data":{"location":"lla","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:22.883Z","error":{"data":{"location":"lla","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:28.716Z","error":{"data":{"location":"frc","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:32.403Z","error":{"data":{"location":"vll","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:34.349Z","error":{"data":{"location":"frc","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:38.136Z","error":{"data":{"location":"vll","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:41.884Z","error":{"data":{"location":"cln","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:44.281Z","error":{"data":{"location":"odn","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:46.577Z","error":{"data":{"location":"vll","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:51.654Z","error":{"data":{"location":"cco","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:53.497Z","error":{"data":{"location":"lla","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:56.474Z","error":{"data":{"location":"odn","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:51:57.799Z","error":{"data":{"location":"cln","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:52:02.510Z","error":{"data":{"location":"cco","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:52:06.607Z","error":{"data":{"location":"cln","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:52:12.751Z","error":{"data":{"location":"cco","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:52:15.617Z","error":{"data":{"location":"frc","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:52:20.225Z","error":{"data":{"location":"frc","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}
+{"connection":"close","lastDisconnect":{"date":"2025-03-12T01:52:23.948Z","error":{"data":{"location":"frc","reason":"405"},"isBoom":true,"isServer":false,"output":{"headers":{},"payload":{"error":"Method Not Allowed","message":"Connection Failure","statusCode":405},"statusCode":405}}},"level":"info","message":"Actualización de conexión:"}
+{"level":"info","message":"Conexión cerrada. Reconexion:"}
+{"connection":"connecting","level":"info","message":"Actualización de conexión:","receivedPendingNotifications":false}

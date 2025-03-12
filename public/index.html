@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Conectar WhatsApp</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <h1>Conecta tu WhatsApp</h1>
+  <p id="status">Esperando conexión...</p>
+  <div id="qr-container"></div>
+
+  <script>
+    const socket = io();
+
+    socket.on('qr', function(qrData) {
+      document.getElementById('qr-container').innerHTML = `<img src="${qrData}" alt="Código QR" />`;
+      document.getElementById('status').textContent = "Escanea el código QR con WhatsApp";
+    });
+
+    socket.on('status', function(statusMessage) {
+      document.getElementById('status').textContent = statusMessage;
+    });
+  </script>
+</body>
+</html>
