@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>MateChat - Railway + Etiquetas + API config</title>
+  <title>MateChat - Railway + Etiquetas + API SIEMPRE habilitada</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,10 +13,12 @@
         <div class="app-status" id="status">Esperando conexión...</div>
       </div>
       <div class="header-right">
-        <button class="config-btn" onclick="toggleConfigPanel()">Config webhook</button>
-        <button class="config-btn" onclick="toggleAPIConfigPanel()">Config API</button>
+        <!-- Panel Webhook original (uno solo) si quieres conservarlo:
+             <button class="config-btn" onclick="toggleConfigPanel()">Config webhook</button>
+        -->
+        <!-- Botón para administrar Etiquetas -->
         <button class="label-btn" onclick="toggleLabelManager()">Etiquetas</button>
-        <!-- Nuevo botón para el gestor de webhooks -->
+        <!-- Botón para el gestor de webhooks múltiples -->
         <button class="config-btn" onclick="toggleWebhookManager()">Gestor Webhooks</button>
       </div>
     </header>
@@ -43,7 +45,7 @@
       </section>
     </div>
 
-    <!-- Panel Webhook (configuración actual, para un único webhook si se desea) -->
+    <!-- (Opcional) Panel Webhook único, si lo deseas conservar:
     <div class="config-panel" id="config-panel" style="display: none;">
       <h2>Config Webhook</h2>
       <label>URL:</label>
@@ -58,18 +60,7 @@
       </div>
       <button class="save-config-btn" onclick="saveWebhookConfig()">Guardar</button>
     </div>
-
-    <!-- Panel Config API -->
-    <div class="config-panel" id="api-config-panel" style="display: none; top: 200px;">
-      <h2>Config API</h2>
-      <div class="checkbox-row">
-        <input type="checkbox" id="cb-api-enabled">
-        <label>Habilitar API</label>
-      </div>
-      <label>API Key:</label>
-      <input type="text" id="api-key-input" placeholder="Ej: 123456" />
-      <button class="save-config-btn" onclick="saveAPIConfig()">Guardar</button>
-    </div>
+    -->
 
     <!-- Panel Etiquetas -->
     <div class="label-manager-panel" id="label-manager-panel" style="display:none;">
@@ -115,17 +106,6 @@
     const messageInput = document.getElementById('message-input');
     const messageSection = document.getElementById('message-section');
 
-    // Panel Webhook (configuración única, si se desea usarlo)
-    const configPanel = document.getElementById('config-panel');
-    const webhookUrl = document.getElementById('webhook-url');
-    const cbOnReceive = document.getElementById('cb-onreceive');
-    const cbOnSent = document.getElementById('cb-onsent');
-
-    // Panel API
-    const apiConfigPanel = document.getElementById('api-config-panel');
-    const cbAPIEnabled = document.getElementById('cb-api-enabled');
-    const apiKeyInput = document.getElementById('api-key-input');
-
     // Panel Etiquetas
     const labelManagerPanel = document.getElementById('label-manager-panel');
     const labelListDiv = document.getElementById('label-list');
@@ -143,7 +123,7 @@
     let allLabels = [];
     let chatLabels = {};
 
-    // 1) EVENTOS SERVIDOR
+    // Socket.IO events
     socket.on('qr', (qrUrl) => {
       qrOverlay.innerHTML = `<img src="${qrUrl}" alt="QR">`;
       qrOverlay.style.display = 'flex';
@@ -197,30 +177,18 @@
       }
     });
 
-    // Webhook config (único)
-    socket.on('webhook-config-updated', (cfg) => {
-      webhookUrl.value = cfg.url;
-      cbOnReceive.checked = cfg.onMessageReceived;
-      cbOnSent.checked = cfg.onMessageSent;
-    });
-    // API Config
-    socket.on('api-config-updated', (cfg) => {
-      cbAPIEnabled.checked = cfg.enabled;
-      apiKeyInput.value = cfg.apiKey;
-    });
-
     // Etiquetas
     socket.on('all-labels', (labels) => {
       allLabels = labels;
       renderGlobalLabels();
-      socket.emit('chats'); 
+      socket.emit('chats');
     });
     socket.on('chat-labels-updated', (cl) => {
       chatLabels = cl;
       socket.emit('chats');
     });
 
-    // 2) FUNCIONES
+    // Render Chat List
     function renderChatList(chats) {
       chatList.innerHTML = '';
       chats.forEach(chat => {
@@ -245,15 +213,8 @@
         }
         li.appendChild(badgeContainer);
 
-        // clic izq => abrir chat
+        // click => abrir chat
         li.onclick = () => selectChat({ id: chat.id, name: chat.name });
-
-        // clic derecho => menú contextual para etiquetas
-        li.oncontextmenu = (e) => {
-          e.preventDefault();
-          // Función para menú contextual si se desea implementar
-        };
-
         chatList.appendChild(li);
       });
     }
@@ -278,7 +239,7 @@
       if (e.key === 'Enter') sendMessage();
     });
 
-    // Menú contextual (etiquetas)
+    // Etiquetas
     function renderGlobalLabels() {
       labelListDiv.innerHTML = '';
       allLabels.forEach(lbl => {
@@ -317,35 +278,6 @@
       newLabelName.value = '';
       newLabelColor.value = '#dd3333';
     }
-
-    // Panel Webhook (único)
-    function toggleConfigPanel() {
-      configPanel.style.display = (configPanel.style.display === 'none') ? 'block' : 'none';
-    }
-    function saveWebhookConfig() {
-      const cfg = {
-        url: webhookUrl.value.trim(),
-        onMessageReceived: cbOnReceive.checked,
-        onMessageSent: cbOnSent.checked
-      };
-      socket.emit('update-webhook-config', cfg);
-      configPanel.style.display = 'none';
-    }
-
-    // Panel API
-    function toggleAPIConfigPanel() {
-      apiConfigPanel.style.display = (apiConfigPanel.style.display === 'none') ? 'block' : 'none';
-    }
-    function saveAPIConfig() {
-      const cfg = {
-        enabled: cbAPIEnabled.checked,
-        apiKey: apiKeyInput.value.trim()
-      };
-      socket.emit('update-api-config', cfg);
-      apiConfigPanel.style.display = 'none';
-    }
-
-    // Panel Etiquetas
     function toggleLabelManager() {
       labelManagerPanel.style.display = (labelManagerPanel.style.display === 'none') ? 'block' : 'none';
       if (labelManagerPanel.style.display === 'block') {
@@ -353,14 +285,13 @@
       }
     }
 
-    // Panel Gestor de Webhooks
+    // Gestor de Webhooks
     function toggleWebhookManager() {
       webhookManagerPanel.style.display = (webhookManagerPanel.style.display === 'none') ? 'block' : 'none';
       if (webhookManagerPanel.style.display === 'block') {
         fetchWebhooks();
       }
     }
-    // Función para obtener la lista de webhooks del servidor
     function fetchWebhooks() {
       fetch('/api/webhooks')
         .then(response => response.json())
@@ -375,7 +306,6 @@
           console.error('Error fetching webhooks', error);
         });
     }
-    // Renderizar la lista de webhooks en el panel
     function renderWebhookList(webhooks) {
       webhookListDiv.innerHTML = '';
       if (webhooks.length === 0) {
@@ -392,7 +322,6 @@
         webhookListDiv.appendChild(div);
       });
     }
-    // Agregar nuevo webhook
     function addWebhook() {
       const url = newWebhookUrl.value.trim();
       const onMessageReceived = newCbOnReceive.checked;
@@ -426,7 +355,6 @@
           alert('Error al agregar webhook');
         });
     }
-    // Eliminar webhook
     function deleteWebhook(url) {
       if (!confirm('¿Eliminar este webhook?')) return;
       fetch('/api/webhooks', {
