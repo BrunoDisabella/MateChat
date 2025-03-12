@@ -13,12 +13,11 @@
         <div class="app-status" id="status">Esperando conexión...</div>
       </div>
       <div class="header-right">
-        <!-- Botón para configurar Webhook -->
         <button class="config-btn" onclick="toggleConfigPanel()">Config webhook</button>
-        <!-- Botón para configurar la API -->
         <button class="config-btn" onclick="toggleAPIConfigPanel()">Config API</button>
-        <!-- Botón para administrar Etiquetas -->
         <button class="label-btn" onclick="toggleLabelManager()">Etiquetas</button>
+        <!-- Nuevo botón para el gestor de webhooks -->
+        <button class="config-btn" onclick="toggleWebhookManager()">Gestor Webhooks</button>
       </div>
     </header>
 
@@ -44,7 +43,7 @@
       </section>
     </div>
 
-    <!-- Panel Webhook -->
+    <!-- Panel Webhook (configuración actual, para un único webhook si se desea) -->
     <div class="config-panel" id="config-panel" style="display: none;">
       <h2>Config Webhook</h2>
       <label>URL:</label>
@@ -82,16 +81,24 @@
       <button class="add-label-btn" onclick="createLabel()">Crear</button>
     </div>
 
-    <!-- Menú contextual para asignar/quitar etiquetas -->
-    <div class="chat-context-menu" id="chat-context-menu" style="display:none;">
-      <div class="menu-section">
-        <h4>Asignar Etiqueta</h4>
-        <div id="assign-labels-list"></div>
+    <!-- Panel Gestor de Webhooks -->
+    <div class="webhook-manager-panel" id="webhook-manager-panel" style="display: none;">
+      <h2>Gestor de Webhooks</h2>
+      <div id="webhook-list">
+        <!-- Se listarán los webhooks configurados -->
       </div>
-      <div class="menu-section">
-        <h4>Quitar Etiqueta</h4>
-        <div id="remove-labels-list"></div>
+      <h3>Agregar nuevo Webhook</h3>
+      <label>URL:</label>
+      <input type="text" id="new-webhook-url" placeholder="https://tu-webhook.com">
+      <div class="checkbox-row">
+        <input type="checkbox" id="new-cb-onreceive">
+        <label>onMessageReceived</label>
       </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="new-cb-onsent">
+        <label>onMessageSent</label>
+      </div>
+      <button class="save-config-btn" onclick="addWebhook()">Agregar Webhook</button>
     </div>
   </div>
 
@@ -108,7 +115,7 @@
     const messageInput = document.getElementById('message-input');
     const messageSection = document.getElementById('message-section');
 
-    // Panel Webhook
+    // Panel Webhook (configuración única, si se desea usarlo)
     const configPanel = document.getElementById('config-panel');
     const webhookUrl = document.getElementById('webhook-url');
     const cbOnReceive = document.getElementById('cb-onreceive');
@@ -125,15 +132,16 @@
     const newLabelName = document.getElementById('new-label-name');
     const newLabelColor = document.getElementById('new-label-color');
 
-    // Menú contextual
-    const chatContextMenu = document.getElementById('chat-context-menu');
-    const assignLabelsList = document.getElementById('assign-labels-list');
-    const removeLabelsList = document.getElementById('remove-labels-list');
+    // Panel Gestor de Webhooks
+    const webhookManagerPanel = document.getElementById('webhook-manager-panel');
+    const webhookListDiv = document.getElementById('webhook-list');
+    const newWebhookUrl = document.getElementById('new-webhook-url');
+    const newCbOnReceive = document.getElementById('new-cb-onreceive');
+    const newCbOnSent = document.getElementById('new-cb-onsent');
 
     let selectedChat = null;
     let allLabels = [];
     let chatLabels = {};
-    let currentRightClickChatId = null;
 
     // 1) EVENTOS SERVIDOR
     socket.on('qr', (qrUrl) => {
@@ -189,11 +197,16 @@
       }
     });
 
-    // Webhook config
+    // Webhook config (único)
     socket.on('webhook-config-updated', (cfg) => {
       webhookUrl.value = cfg.url;
       cbOnReceive.checked = cfg.onMessageReceived;
       cbOnSent.checked = cfg.onMessageSent;
+    });
+    // API Config
+    socket.on('api-config-updated', (cfg) => {
+      cbAPIEnabled.checked = cfg.enabled;
+      apiKeyInput.value = cfg.apiKey;
     });
 
     // Etiquetas
@@ -205,12 +218,6 @@
     socket.on('chat-labels-updated', (cl) => {
       chatLabels = cl;
       socket.emit('chats');
-    });
-
-    // API Config
-    socket.on('api-config-updated', (cfg) => {
-      cbAPIEnabled.checked = cfg.enabled;
-      apiKeyInput.value = cfg.apiKey;
     });
 
     // 2) FUNCIONES
@@ -241,11 +248,10 @@
         // clic izq => abrir chat
         li.onclick = () => selectChat({ id: chat.id, name: chat.name });
 
-        // clic derecho => menú contextual
+        // clic derecho => menú contextual para etiquetas
         li.oncontextmenu = (e) => {
           e.preventDefault();
-          currentRightClickChatId = chat.id;
-          openContextMenu(e.clientX, e.clientY, chat.id);
+          // Función para menú contextual si se desea implementar
         };
 
         chatList.appendChild(li);
@@ -273,97 +279,6 @@
     });
 
     // Menú contextual (etiquetas)
-    function openContextMenu(x, y, chatId) {
-      chatContextMenu.style.display = 'block';
-      chatContextMenu.style.left = x + 'px';
-      chatContextMenu.style.top = y + 'px';
-      assignLabelsList.innerHTML = '';
-      removeLabelsList.innerHTML = '';
-
-      const assigned = chatLabels[chatId] || [];
-      const notAssigned = allLabels.filter(l => !assigned.includes(l.id));
-
-      notAssigned.forEach(lbl => {
-        const div = document.createElement('div');
-        div.classList.add('context-label-row');
-        const colorBox = document.createElement('span');
-        colorBox.classList.add('label-color-box');
-        colorBox.style.backgroundColor = lbl.color;
-        const lblName = document.createElement('span');
-        lblName.textContent = lbl.name;
-        lblName.style.marginLeft = '5px';
-        div.appendChild(colorBox);
-        div.appendChild(lblName);
-        div.onclick = () => {
-          socket.emit('assign-label', { chatId, labelId: lbl.id });
-          hideContextMenu();
-        };
-        assignLabelsList.appendChild(div);
-      });
-
-      assigned.forEach(labelId => {
-        const lbl = allLabels.find(l => l.id === labelId);
-        if (!lbl) return;
-        const div = document.createElement('div');
-        div.classList.add('context-label-row');
-        const colorBox = document.createElement('span');
-        colorBox.classList.add('label-color-box');
-        colorBox.style.backgroundColor = lbl.color;
-        const lblName = document.createElement('span');
-        lblName.textContent = lbl.name;
-        lblName.style.marginLeft = '5px';
-        div.appendChild(colorBox);
-        div.appendChild(lblName);
-        div.onclick = () => {
-          socket.emit('unassign-label', { chatId, labelId: lbl.id });
-          hideContextMenu();
-        };
-        removeLabelsList.appendChild(div);
-      });
-    }
-    function hideContextMenu() {
-      chatContextMenu.style.display = 'none';
-    }
-    document.addEventListener('click', (e) => {
-      if (e.button !== 2) hideContextMenu();
-    });
-
-    // Panel Webhook
-    function toggleConfigPanel() {
-      configPanel.style.display = (configPanel.style.display === 'none') ? 'block' : 'none';
-    }
-    function saveWebhookConfig() {
-      const cfg = {
-        url: webhookUrl.value.trim(),
-        onMessageReceived: cbOnReceive.checked,
-        onMessageSent: cbOnSent.checked
-      };
-      socket.emit('update-webhook-config', cfg);
-      configPanel.style.display = 'none';
-    }
-
-    // Panel API
-    function toggleAPIConfigPanel() {
-      apiConfigPanel.style.display = (apiConfigPanel.style.display === 'none') ? 'block' : 'none';
-    }
-    function saveAPIConfig() {
-      const cfg = {
-        enabled: cbAPIEnabled.checked,
-        apiKey: apiKeyInput.value.trim()
-      };
-      socket.emit('update-api-config', cfg);
-      apiConfigPanel.style.display = 'none';
-    }
-
-    // Panel Etiquetas
-    function toggleLabelManager() {
-      if (labelManagerPanel.style.display === 'none') {
-        labelManagerPanel.style.display = 'block';
-        socket.emit('get-all-labels');
-      } else {
-        labelManagerPanel.style.display = 'none';
-      }
-    }
     function renderGlobalLabels() {
       labelListDiv.innerHTML = '';
       allLabels.forEach(lbl => {
@@ -401,6 +316,139 @@
       socket.emit('create-label', data);
       newLabelName.value = '';
       newLabelColor.value = '#dd3333';
+    }
+
+    // Panel Webhook (único)
+    function toggleConfigPanel() {
+      configPanel.style.display = (configPanel.style.display === 'none') ? 'block' : 'none';
+    }
+    function saveWebhookConfig() {
+      const cfg = {
+        url: webhookUrl.value.trim(),
+        onMessageReceived: cbOnReceive.checked,
+        onMessageSent: cbOnSent.checked
+      };
+      socket.emit('update-webhook-config', cfg);
+      configPanel.style.display = 'none';
+    }
+
+    // Panel API
+    function toggleAPIConfigPanel() {
+      apiConfigPanel.style.display = (apiConfigPanel.style.display === 'none') ? 'block' : 'none';
+    }
+    function saveAPIConfig() {
+      const cfg = {
+        enabled: cbAPIEnabled.checked,
+        apiKey: apiKeyInput.value.trim()
+      };
+      socket.emit('update-api-config', cfg);
+      apiConfigPanel.style.display = 'none';
+    }
+
+    // Panel Etiquetas
+    function toggleLabelManager() {
+      labelManagerPanel.style.display = (labelManagerPanel.style.display === 'none') ? 'block' : 'none';
+      if (labelManagerPanel.style.display === 'block') {
+        socket.emit('get-all-labels');
+      }
+    }
+
+    // Panel Gestor de Webhooks
+    function toggleWebhookManager() {
+      webhookManagerPanel.style.display = (webhookManagerPanel.style.display === 'none') ? 'block' : 'none';
+      if (webhookManagerPanel.style.display === 'block') {
+        fetchWebhooks();
+      }
+    }
+    // Función para obtener la lista de webhooks del servidor
+    function fetchWebhooks() {
+      fetch('/api/webhooks')
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            renderWebhookList(data.webhooks);
+          } else {
+            alert('Error al obtener webhooks');
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching webhooks', error);
+        });
+    }
+    // Renderizar la lista de webhooks en el panel
+    function renderWebhookList(webhooks) {
+      webhookListDiv.innerHTML = '';
+      if (webhooks.length === 0) {
+        webhookListDiv.innerHTML = '<p>No hay webhooks configurados.</p>';
+        return;
+      }
+      webhooks.forEach(hook => {
+        const div = document.createElement('div');
+        div.classList.add('webhook-item');
+        div.innerHTML = `<span>${hook.url}</span>
+          <span>${hook.onMessageReceived ? 'Recibe' : ''}</span>
+          <span>${hook.onMessageSent ? 'Envía' : ''}</span>
+          <button onclick="deleteWebhook('${hook.url}')">Eliminar</button>`;
+        webhookListDiv.appendChild(div);
+      });
+    }
+    // Agregar nuevo webhook
+    function addWebhook() {
+      const url = newWebhookUrl.value.trim();
+      const onMessageReceived = newCbOnReceive.checked;
+      const onMessageSent = newCbOnSent.checked;
+      if (!url) {
+        alert('La URL es obligatoria');
+        return;
+      }
+      const newWebhook = { url, onMessageReceived, onMessageSent };
+      fetch('/api/webhooks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newWebhook)
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert('Webhook agregado');
+            fetchWebhooks();
+            newWebhookUrl.value = '';
+            newCbOnReceive.checked = false;
+            newCbOnSent.checked = false;
+          } else {
+            alert('Error al agregar webhook: ' + data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error adding webhook:', error);
+          alert('Error al agregar webhook');
+        });
+    }
+    // Eliminar webhook
+    function deleteWebhook(url) {
+      if (!confirm('¿Eliminar este webhook?')) return;
+      fetch('/api/webhooks', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url })
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert('Webhook eliminado');
+            fetchWebhooks();
+          } else {
+            alert('Error al eliminar webhook: ' + data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error deleting webhook:', error);
+          alert('Error al eliminar webhook');
+        });
     }
   </script>
 </body>

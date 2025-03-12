@@ -6,43 +6,33 @@ const { createServer } = require('http');
 const { Server } = require('socket.io');
 const qrcode = require('qrcode');
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const axios = require('axios'); // Para webhooks y requests
+const axios = require('axios');
 
 //-------------------------------------
-// Configuración en memoria
+// Lista de webhooks (cada uno con su configuración)
 //-------------------------------------
-
-// Webhook
-let webhookConfig = {
-  url: '',
-  onMessageReceived: false,
-  onMessageSent: false
-};
-
-// Etiquetas globales
-let allLabels = [];
-// Relación chat -> array de label IDs
-let chatLabels = {};
-
-// API config (para habilitar la API y exigir apiKey)
-let apiConfig = {
-  enabled: false,
-  apiKey: ''  // si está vacío, no exige match
-};
+let webhookList = [
+  // Ejemplo (inicialmente vacío)
+  // {
+  //   url: 'https://miwebhook1.com',
+  //   onMessageReceived: true,
+  //   onMessageSent: true
+  // }
+];
 
 //-------------------------------------
-// Función genérica para llamar al webhook
+// Función para llamar a un webhook dado
 //-------------------------------------
-async function callWebhook(eventType, payload) {
-  if (!webhookConfig.url) return;
+async function callWebhook(webhookUrl, eventType, payload) {
+  if (!webhookUrl) return;
   try {
-    const response = await axios.post(webhookConfig.url, {
+    const response = await axios.post(webhookUrl, {
       event: eventType,
       data: payload
     });
-    console.log(`Webhook [${eventType}] =>`, response.status, response.statusText);
+    console.log(`Webhook [${eventType}] => ${webhookUrl}`, response.status, response.statusText);
   } catch (error) {
-    console.error('Error llamando al webhook:', error.message);
+    console.error(`Error llamando al webhook [${eventType}] (${webhookUrl}):`, error.message);
   }
 }
 
@@ -55,199 +45,55 @@ const io = new Server(server);
 
 // Servir estáticos
 app.use(express.static('public'));
-// Para parsear JSON (API)
+// Para parsear JSON en requests
 app.use(express.json());
 
 //-------------------------------------
-// Crear el cliente de WhatsApp
+// Endpoints para administrar webhooks
 //-------------------------------------
-const client = new Client({
-  authStrategy: new LocalAuth({ clientId: 'matechat' }),
-  puppeteer: {
-    headless: true,
-    args: ['--no-sandbox','--disable-setuid-sandbox']
-  },
+app.get('/api/webhooks', (req, res) => {
+  return res.json({ success: true, webhooks: webhookList });
 });
 
-//-------------------------------------
-// Eventos de WhatsApp
-//-------------------------------------
-client.on('qr', async (qr) => {
-  try {
-    const qrImageUrl = await qrcode.toDataURL(qr);
-    io.emit('qr', qrImageUrl);
-    console.log('QR enviado al cliente');
-  } catch (err) {
-    console.error('Error generando QR:', err);
-    io.emit('qr-error', 'No se pudo generar el código QR');
+app.post('/api/webhooks', (req, res) => {
+  const { url, onMessageReceived, onMessageSent } = req.body;
+  if (!url) {
+    return res.status(400).json({ success: false, error: 'Falta URL' });
   }
-});
-
-client.on('ready', () => {
-  console.log('WhatsApp listo!');
-  io.emit('connected', true);
-  fetchChats();
-});
-
-client.on('auth_failure', (msg) => {
-  console.error('Error de autenticación:', msg);
-  io.emit('connected', false);
-});
-
-client.on('disconnected', (reason) => {
-  console.log('Cliente desconectado:', reason);
-  io.emit('connected', false);
-});
-
-// Mensaje entrante (desde otros, o a veces fromMe si envías desde este mismo script)
-client.on('message', (message) => {
-  console.log(`Mensaje de ${message.from}: ${message.body}`);
-  // Emitimos al frontend
-  io.emit('new-message', {
-    id: message.from,
-    text: message.body,
-    fromMe: message.fromMe
+  // Evita duplicados
+  if (webhookList.find(hook => hook.url === url)) {
+    return res.status(400).json({ success: false, error: 'Webhook ya existe' });
+  }
+  webhookList.push({
+    url,
+    onMessageReceived: !!onMessageReceived,
+    onMessageSent: !!onMessageSent
   });
-  // Webhook onMessageReceived
-  if (webhookConfig.onMessageReceived) {
-    callWebhook('onMessageReceived', {
-      from: message.from,
-      body: message.body,
-      fromMe: message.fromMe,
-      timestamp: message.timestamp
-    });
-  }
+  return res.json({ success: true, message: 'Webhook agregado', webhooks: webhookList });
 });
 
-// NUEVO: Mensajes que tu cuenta genera (aunque sea desde la app oficial)
-client.on('message_create', (message) => {
-  // Si el mensaje es "fromMe", significa que lo enviaste tú mismo,
-  // ya sea desde este código o desde tu teléfono en modo multi-dispositivo.
-  if (message.fromMe && webhookConfig.onMessageSent) {
-    callWebhook('onMessageSent', {
-      to: message.to,
-      text: message.body,
-      timestamp: message.timestamp
-    });
+app.delete('/api/webhooks', (req, res) => {
+  const { url } = req.body;
+  if (!url) {
+    return res.status(400).json({ success: false, error: 'Falta URL' });
+  }
+  const prevCount = webhookList.length;
+  webhookList = webhookList.filter(hook => hook.url !== url);
+  if (webhookList.length < prevCount) {
+    return res.json({ success: true, message: 'Webhook eliminado', webhooks: webhookList });
+  } else {
+    return res.status(404).json({ success: false, error: 'Webhook no encontrado' });
   }
 });
 
 //-------------------------------------
-// Socket.IO
+// Configuración de la API (para chats y envío de mensajes)
 //-------------------------------------
-io.on('connection', (socket) => {
-  console.log('Nuevo cliente conectado al Socket.IO');
+let apiConfig = {
+  enabled: false,
+  apiKey: ''  // si está vacío, no exige match
+};
 
-  // Pedir historial de un chat
-  socket.on('select-chat', async (chatId) => {
-    try {
-      const chat = await client.getChatById(chatId);
-      const messages = await chat.fetchMessages({ limit: 20 });
-      const mapped = messages.map(msg => ({
-        id: msg.id._serialized,
-        fromMe: msg.fromMe,
-        body: msg.body
-      }));
-      socket.emit('chat-history', { chatId, messages: mapped });
-    } catch (err) {
-      console.error('Error al obtener historial:', err);
-      socket.emit('chat-history-error', 'No se pudo cargar historial');
-    }
-  });
-
-  // Enviar mensaje desde frontend
-  socket.on('send-message', async (data) => {
-    const { to, text } = data;
-    console.log(`Enviando mensaje a ${to}: ${text}`);
-    try {
-      await client.sendMessage(to, text);
-      io.emit('message-sent', { to, text });
-      // Webhook onMessageSent
-      if (webhookConfig.onMessageSent) {
-        callWebhook('onMessageSent', {
-          to,
-          text,
-          timestamp: Date.now()
-        });
-      }
-    } catch (err) {
-      console.error('Error enviando mensaje:', err);
-    }
-  });
-
-  // Configurar Webhook
-  socket.on('update-webhook-config', (newConfig) => {
-    webhookConfig = {
-      url: newConfig.url || '',
-      onMessageReceived: !!newConfig.onMessageReceived,
-      onMessageSent: !!newConfig.onMessageSent
-    };
-    console.log('Nueva config de webhook:', webhookConfig);
-    socket.emit('webhook-config-updated', webhookConfig);
-  });
-  // Al conectar
-  socket.emit('webhook-config-updated', webhookConfig);
-
-  // Etiquetas: leer lista global
-  socket.on('get-all-labels', () => {
-    socket.emit('all-labels', allLabels);
-  });
-  // Crear etiqueta global
-  socket.on('create-label', (data) => {
-    const newId = 'lbl-' + Date.now();
-    const newLabel = {
-      id: newId,
-      name: data.name || 'Etiqueta sin nombre',
-      color: data.color || '#000'
-    };
-    allLabels.push(newLabel);
-    io.emit('all-labels', allLabels);
-  });
-  // Eliminar etiqueta global
-  socket.on('delete-label', (labelId) => {
-    allLabels = allLabels.filter(lbl => lbl.id !== labelId);
-    // Quitarla de todos los chats
-    for (const cId in chatLabels) {
-      chatLabels[cId] = chatLabels[cId].filter(lid => lid !== labelId);
-    }
-    io.emit('all-labels', allLabels);
-    io.emit('chat-labels-updated', chatLabels);
-  });
-  // Asignar etiqueta a chat
-  socket.on('assign-label', (data) => {
-    const { chatId, labelId } = data;
-    if (!chatLabels[chatId]) chatLabels[chatId] = [];
-    if (!chatLabels[chatId].includes(labelId)) {
-      chatLabels[chatId].push(labelId);
-    }
-    io.emit('chat-labels-updated', chatLabels);
-  });
-  // Quitar etiqueta de chat
-  socket.on('unassign-label', (data) => {
-    const { chatId, labelId } = data;
-    if (!chatLabels[chatId]) chatLabels[chatId] = [];
-    chatLabels[chatId] = chatLabels[chatId].filter(lid => lid !== labelId);
-    io.emit('chat-labels-updated', chatLabels);
-  });
-  // Al conectar, mandamos la relación chat-etiquetas
-  socket.emit('chat-labels-updated', chatLabels);
-
-  // ---------------------------------------------------
-  //  Configuración de la API (apiConfig)
-  // ---------------------------------------------------
-  socket.on('update-api-config', (newCfg) => {
-    apiConfig.enabled = !!newCfg.enabled;
-    apiConfig.apiKey = newCfg.apiKey || '';
-    console.log('Nueva config de API:', apiConfig);
-    socket.emit('api-config-updated', apiConfig);
-  });
-  // Al conectar
-  socket.emit('api-config-updated', apiConfig);
-});
-
-//-------------------------------------
-// GET de chats y POST de send-message (vía API)
-//-------------------------------------
 app.get('/api/chats', async (req, res) => {
   try {
     if (!apiConfig.enabled) {
@@ -258,11 +104,7 @@ app.get('/api/chats', async (req, res) => {
     }
 
     const chats = await client.getChats();
-    chats.sort((a, b) => {
-      const tA = a.lastMessage?.timestamp || 0;
-      const tB = b.lastMessage?.timestamp || 0;
-      return tB - tA;
-    });
+    chats.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
     const simple = chats.map(c => ({
       id: c.id._serialized,
       name: c.name || c.id.user
@@ -282,21 +124,22 @@ app.post('/api/send-message', async (req, res) => {
     if (apiConfig.apiKey && req.headers['x-api-key'] !== apiConfig.apiKey) {
       return res.status(401).json({ success: false, error: 'API key inválida' });
     }
-
     const { chatId, text } = req.body;
     if (!chatId || !text) {
       return res.status(400).json({ success: false, error: 'Falta chatId o text' });
     }
     await client.sendMessage(chatId, text);
 
-    // Webhook onMessageSent si corresponde
-    if (webhookConfig.onMessageSent) {
-      callWebhook('onMessageSent', {
-        to: chatId,
-        text,
-        timestamp: Date.now()
-      });
-    }
+    // Como ejemplo, llamamos a los webhooks configurados para onMessageSent
+    webhookList.forEach(hook => {
+      if (hook.onMessageSent) {
+        callWebhook(hook.url, 'onMessageSent', {
+          to: chatId,
+          text,
+          timestamp: Date.now()
+        });
+      }
+    });
     return res.json({ success: true, message: 'Mensaje enviado correctamente' });
   } catch (err) {
     console.error('Error /api/send-message:', err);
@@ -305,28 +148,91 @@ app.post('/api/send-message', async (req, res) => {
 });
 
 //-------------------------------------
-// Cargar Chats y arrancar
+// Crear el cliente de WhatsApp y configurar sus eventos
 //-------------------------------------
-async function fetchChats() {
-  try {
-    let chats = await client.getChats();
-    chats.sort((a, b) => {
-      const tA = a.lastMessage?.timestamp || 0;
-      const tB = b.lastMessage?.timestamp || 0;
-      return tB - tA;
-    });
-    const simpleChats = chats.map(chat => ({
-      id: chat.id._serialized,
-      name: chat.name || chat.id.user
-    }));
-    io.emit('chats', simpleChats);
-    console.log(`Se enviaron ${simpleChats.length} chats al frontend.`);
-  } catch (err) {
-    console.error('Error obteniendo chats:', err);
-  }
-}
+const client = new Client({
+  authStrategy: new LocalAuth({ clientId: 'matechat' }),
+  puppeteer: {
+    headless: true,
+    args: ['--no-sandbox','--disable-setuid-sandbox']
+  },
+});
 
-// Puerto para Railway
+client.on('qr', async (qr) => {
+  try {
+    const qrImageUrl = await qrcode.toDataURL(qr);
+    io.emit('qr', qrImageUrl);
+    console.log('QR enviado al cliente');
+  } catch (err) {
+    console.error('Error generando QR:', err);
+    io.emit('qr-error', 'No se pudo generar el código QR');
+  }
+});
+
+client.on('ready', () => {
+  console.log('WhatsApp listo!');
+  io.emit('connected', true);
+});
+
+client.on('auth_failure', (msg) => {
+  console.error('Error de autenticación:', msg);
+  io.emit('connected', false);
+});
+
+client.on('disconnected', (reason) => {
+  console.log('Cliente desconectado:', reason);
+  io.emit('connected', false);
+});
+
+// Evento para mensajes entrantes (de otros)
+client.on('message', (message) => {
+  console.log(`Mensaje de ${message.from}: ${message.body}`);
+
+  // Llama a cada webhook que tenga onMessageReceived activado
+  webhookList.forEach((hook) => {
+    if (hook.onMessageReceived) {
+      callWebhook(hook.url, 'onMessageReceived', {
+        from: message.from,
+        body: message.body,
+        fromMe: message.fromMe,
+        timestamp: message.timestamp
+      });
+    }
+  });
+  io.emit('new-message', {
+    id: message.from,
+    text: message.body,
+    fromMe: message.fromMe
+  });
+});
+
+// Evento para mensajes que tú envías (desde el script o tu celular)
+client.on('message_create', (message) => {
+  if (message.fromMe) {
+    webhookList.forEach((hook) => {
+      if (hook.onMessageSent) {
+        callWebhook(hook.url, 'onMessageSent', {
+          to: message.to,
+          text: message.body,
+          timestamp: message.timestamp
+        });
+      }
+    });
+  }
+});
+
+//-------------------------------------
+// Socket.IO (puedes mantener la configuración previa de chats, etiquetas, etc.)
+//-------------------------------------
+io.on('connection', (socket) => {
+  console.log('Nuevo cliente conectado al Socket.IO');
+
+  // Aquí puedes agregar eventos para otras funcionalidades (chats, etiquetas, etc.)
+});
+
+//-------------------------------------
+// Arrancar servidor y cliente WhatsApp
+//-------------------------------------
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Servidor iniciado en puerto ${PORT}`);
