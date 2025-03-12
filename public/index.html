@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>MateChat - Railway Adaptado</title>
+  <meta charset="UTF-8" />
+  <title>MateChat - Railway + Etiquetas + API config</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,18 +13,25 @@
         <div class="app-status" id="status">Esperando conexión...</div>
       </div>
       <div class="header-right">
+        <!-- Botón para configurar Webhook -->
         <button class="config-btn" onclick="toggleConfigPanel()">Config webhook</button>
-        <button class="label-btn" onclick="toggleLabelManager()">Admin Etiquetas</button>
+        <!-- Botón para configurar la API -->
+        <button class="config-btn" onclick="toggleAPIConfigPanel()">Config API</button>
+        <!-- Botón para administrar Etiquetas -->
+        <button class="label-btn" onclick="toggleLabelManager()">Etiquetas</button>
       </div>
     </header>
 
+    <!-- Overlay de QR -->
     <div class="qr-overlay" id="qr-code"></div>
 
     <div class="main-content" id="main-content">
+      <!-- Barra lateral de chats -->
       <aside class="sidebar">
         <div class="sidebar-header">Chats</div>
         <ul class="chat-list" id="chat-list"></ul>
       </aside>
+      <!-- Área de mensajes -->
       <section class="chat-area">
         <div class="chat-header" id="chat-header">
           <h3>Selecciona un chat</h3>
@@ -40,20 +47,32 @@
     <!-- Panel Webhook -->
     <div class="config-panel" id="config-panel" style="display: none;">
       <h2>Config Webhook</h2>
-      <label for="webhook-url">URL:</label>
+      <label>URL:</label>
       <input type="text" id="webhook-url">
       <div class="checkbox-row">
         <input type="checkbox" id="cb-onreceive">
-        <label for="cb-onreceive">onMessageReceived</label>
+        <label>onMessageReceived</label>
       </div>
       <div class="checkbox-row">
         <input type="checkbox" id="cb-onsent">
-        <label for="cb-onsent">onMessageSent</label>
+        <label>onMessageSent</label>
       </div>
       <button class="save-config-btn" onclick="saveWebhookConfig()">Guardar</button>
     </div>
 
-    <!-- Panel de Etiquetas globales -->
+    <!-- Panel Config API -->
+    <div class="config-panel" id="api-config-panel" style="display: none; top: 200px;">
+      <h2>Config API</h2>
+      <div class="checkbox-row">
+        <input type="checkbox" id="cb-api-enabled">
+        <label>Habilitar API</label>
+      </div>
+      <label>API Key:</label>
+      <input type="text" id="api-key-input" placeholder="Ej: 123456" />
+      <button class="save-config-btn" onclick="saveAPIConfig()">Guardar</button>
+    </div>
+
+    <!-- Panel Etiquetas -->
     <div class="label-manager-panel" id="label-manager-panel" style="display:none;">
       <h2>Etiquetas Globales</h2>
       <div id="label-list"></div>
@@ -63,7 +82,7 @@
       <button class="add-label-btn" onclick="createLabel()">Crear</button>
     </div>
 
-    <!-- Menú contextual para Asignar/Quitar etiquetas -->
+    <!-- Menú contextual para asignar/quitar etiquetas -->
     <div class="chat-context-menu" id="chat-context-menu" style="display:none;">
       <div class="menu-section">
         <h4>Asignar Etiqueta</h4>
@@ -85,17 +104,22 @@
     const mainContent = document.getElementById('main-content');
     const chatList = document.getElementById('chat-list');
     const chatHeader = document.getElementById('chat-header');
-    const messageInput = document.getElementById('message-input');
     const messageList = document.getElementById('message-list');
+    const messageInput = document.getElementById('message-input');
     const messageSection = document.getElementById('message-section');
 
-    // Webhook panel
+    // Panel Webhook
     const configPanel = document.getElementById('config-panel');
     const webhookUrl = document.getElementById('webhook-url');
     const cbOnReceive = document.getElementById('cb-onreceive');
     const cbOnSent = document.getElementById('cb-onsent');
 
-    // Etiquetas globales
+    // Panel API
+    const apiConfigPanel = document.getElementById('api-config-panel');
+    const cbAPIEnabled = document.getElementById('cb-api-enabled');
+    const apiKeyInput = document.getElementById('api-key-input');
+
+    // Panel Etiquetas
     const labelManagerPanel = document.getElementById('label-manager-panel');
     const labelListDiv = document.getElementById('label-list');
     const newLabelName = document.getElementById('new-label-name');
@@ -111,35 +135,30 @@
     let chatLabels = {};
     let currentRightClickChatId = null;
 
-    // --- EVENTOS DEL SERVIDOR ---
-    socket.on('qr', qrUrl => {
+    // 1) EVENTOS SERVIDOR
+    socket.on('qr', (qrUrl) => {
       qrOverlay.innerHTML = `<img src="${qrUrl}" alt="QR">`;
       qrOverlay.style.display = 'flex';
       statusText.textContent = 'Escanea el QR';
     });
-
-    socket.on('qr-error', err => {
-      qrOverlay.innerHTML = `<p style="color: red;">${err}</p>`;
+    socket.on('qr-error', (err) => {
+      qrOverlay.innerHTML = `<p style="color:red;">${err}</p>`;
     });
-
-    socket.on('connected', isConnected => {
+    socket.on('connected', (isConnected) => {
       if (isConnected) {
         qrOverlay.style.display = 'none';
         mainContent.style.display = 'flex';
         statusText.textContent = 'Conectado a WhatsApp';
-        // Pedimos etiquetas
         socket.emit('get-all-labels');
       } else {
         mainContent.style.display = 'none';
         statusText.textContent = 'Desconectado';
       }
     });
-
-    socket.on('chats', chats => {
+    socket.on('chats', (chats) => {
       renderChatList(chats);
     });
-
-    socket.on('chat-history', data => {
+    socket.on('chat-history', (data) => {
       if (!selectedChat || selectedChat.id !== data.chatId) return;
       messageList.innerHTML = '';
       data.messages.forEach(msg => {
@@ -150,10 +169,8 @@
       });
       messageList.scrollTop = messageList.scrollHeight;
     });
-
     socket.on('chat-history-error', console.error);
-
-    socket.on('new-message', message => {
+    socket.on('new-message', (message) => {
       if (selectedChat && message.id === selectedChat.id) {
         const div = document.createElement('div');
         div.classList.add('message', message.fromMe ? 'sent' : 'received');
@@ -162,8 +179,7 @@
         messageList.scrollTop = messageList.scrollHeight;
       }
     });
-
-    socket.on('message-sent', data => {
+    socket.on('message-sent', (data) => {
       if (selectedChat && data.to === selectedChat.id) {
         const div = document.createElement('div');
         div.classList.add('message', 'sent');
@@ -173,28 +189,31 @@
       }
     });
 
-    // Config Webhook
-    socket.on('webhook-config-updated', cfg => {
+    // Webhook config
+    socket.on('webhook-config-updated', (cfg) => {
       webhookUrl.value = cfg.url;
       cbOnReceive.checked = cfg.onMessageReceived;
       cbOnSent.checked = cfg.onMessageSent;
     });
 
     // Etiquetas
-    socket.on('all-labels', labels => {
+    socket.on('all-labels', (labels) => {
       allLabels = labels;
       renderGlobalLabels();
-      socket.emit('chats'); // Para refrescar la lista con badges
+      socket.emit('chats'); 
     });
-
-    socket.on('chat-labels-updated', cl => {
+    socket.on('chat-labels-updated', (cl) => {
       chatLabels = cl;
       socket.emit('chats');
     });
 
-    // --- FUNCIONES ---
+    // API Config
+    socket.on('api-config-updated', (cfg) => {
+      cbAPIEnabled.checked = cfg.enabled;
+      apiKeyInput.value = cfg.apiKey;
+    });
 
-    // Lista de chats con sus badges
+    // 2) FUNCIONES
     function renderChatList(chats) {
       chatList.innerHTML = '';
       chats.forEach(chat => {
@@ -202,10 +221,9 @@
         li.classList.add('chat-item');
         li.textContent = chat.name;
 
-        // badge container
+        // Etiquetas (badges)
         const badgeContainer = document.createElement('div');
         badgeContainer.style.marginTop = '5px';
-
         if (chatLabels[chat.id]) {
           chatLabels[chat.id].forEach(labelId => {
             const lbl = allLabels.find(l => l.id === labelId);
@@ -220,9 +238,10 @@
         }
         li.appendChild(badgeContainer);
 
-        li.onclick = () => selectChat(chat);
+        // clic izq => abrir chat
+        li.onclick = () => selectChat({ id: chat.id, name: chat.name });
 
-        // clic derecho
+        // clic derecho => menú contextual
         li.oncontextmenu = (e) => {
           e.preventDefault();
           currentRightClickChatId = chat.id;
@@ -233,73 +252,6 @@
       });
     }
 
-    // Menú contextual
-    function openContextMenu(x, y, chatId) {
-      chatContextMenu.style.display = 'block';
-      chatContextMenu.style.left = x + 'px';
-      chatContextMenu.style.top = y + 'px';
-
-      assignLabelsList.innerHTML = '';
-      removeLabelsList.innerHTML = '';
-
-      const assigned = chatLabels[chatId] || [];
-      const notAssigned = allLabels.filter(l => !assigned.includes(l.id));
-
-      notAssigned.forEach(lbl => {
-        const div = document.createElement('div');
-        div.classList.add('context-label-row');
-        const colorBox = document.createElement('span');
-        colorBox.classList.add('label-color-box');
-        colorBox.style.backgroundColor = lbl.color;
-
-        const lblName = document.createElement('span');
-        lblName.textContent = lbl.name;
-        lblName.style.marginLeft = '5px';
-
-        div.appendChild(colorBox);
-        div.appendChild(lblName);
-
-        div.onclick = () => {
-          socket.emit('assign-label', { chatId, labelId: lbl.id });
-          hideContextMenu();
-        };
-        assignLabelsList.appendChild(div);
-      });
-
-      assigned.forEach(labelId => {
-        const lbl = allLabels.find(l => l.id === labelId);
-        if (!lbl) return;
-        const div = document.createElement('div');
-        div.classList.add('context-label-row');
-        const colorBox = document.createElement('span');
-        colorBox.classList.add('label-color-box');
-        colorBox.style.backgroundColor = lbl.color;
-
-        const lblName = document.createElement('span');
-        lblName.textContent = lbl.name;
-        lblName.style.marginLeft = '5px';
-
-        div.appendChild(colorBox);
-        div.appendChild(lblName);
-
-        div.onclick = () => {
-          socket.emit('unassign-label', { chatId, labelId: lbl.id });
-          hideContextMenu();
-        };
-        removeLabelsList.appendChild(div);
-      });
-    }
-
-    function hideContextMenu() {
-      chatContextMenu.style.display = 'none';
-    }
-    document.addEventListener('click', e => {
-      if (e.button !== 2) {
-        hideContextMenu();
-      }
-    });
-
-    // Seleccionar chat
     function selectChat(chat) {
       selectedChat = chat;
       chatHeader.innerHTML = `<h3>${chat.name}</h3>`;
@@ -316,16 +268,69 @@
         messageInput.value = '';
       }
     }
-    messageInput.addEventListener('keypress', e => {
-      if (e.key === 'Enter') {
-        sendMessage();
-      }
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    // Menú contextual (etiquetas)
+    function openContextMenu(x, y, chatId) {
+      chatContextMenu.style.display = 'block';
+      chatContextMenu.style.left = x + 'px';
+      chatContextMenu.style.top = y + 'px';
+      assignLabelsList.innerHTML = '';
+      removeLabelsList.innerHTML = '';
+
+      const assigned = chatLabels[chatId] || [];
+      const notAssigned = allLabels.filter(l => !assigned.includes(l.id));
+
+      notAssigned.forEach(lbl => {
+        const div = document.createElement('div');
+        div.classList.add('context-label-row');
+        const colorBox = document.createElement('span');
+        colorBox.classList.add('label-color-box');
+        colorBox.style.backgroundColor = lbl.color;
+        const lblName = document.createElement('span');
+        lblName.textContent = lbl.name;
+        lblName.style.marginLeft = '5px';
+        div.appendChild(colorBox);
+        div.appendChild(lblName);
+        div.onclick = () => {
+          socket.emit('assign-label', { chatId, labelId: lbl.id });
+          hideContextMenu();
+        };
+        assignLabelsList.appendChild(div);
+      });
+
+      assigned.forEach(labelId => {
+        const lbl = allLabels.find(l => l.id === labelId);
+        if (!lbl) return;
+        const div = document.createElement('div');
+        div.classList.add('context-label-row');
+        const colorBox = document.createElement('span');
+        colorBox.classList.add('label-color-box');
+        colorBox.style.backgroundColor = lbl.color;
+        const lblName = document.createElement('span');
+        lblName.textContent = lbl.name;
+        lblName.style.marginLeft = '5px';
+        div.appendChild(colorBox);
+        div.appendChild(lblName);
+        div.onclick = () => {
+          socket.emit('unassign-label', { chatId, labelId: lbl.id });
+          hideContextMenu();
+        };
+        removeLabelsList.appendChild(div);
+      });
+    }
+    function hideContextMenu() {
+      chatContextMenu.style.display = 'none';
+    }
+    document.addEventListener('click', (e) => {
+      if (e.button !== 2) hideContextMenu();
     });
 
     // Panel Webhook
     function toggleConfigPanel() {
-      configPanel.style.display =
-        (configPanel.style.display === 'none') ? 'block' : 'none';
+      configPanel.style.display = (configPanel.style.display === 'none') ? 'block' : 'none';
     }
     function saveWebhookConfig() {
       const cfg = {
@@ -337,7 +342,20 @@
       configPanel.style.display = 'none';
     }
 
-    // Admin Etiquetas
+    // Panel API
+    function toggleAPIConfigPanel() {
+      apiConfigPanel.style.display = (apiConfigPanel.style.display === 'none') ? 'block' : 'none';
+    }
+    function saveAPIConfig() {
+      const cfg = {
+        enabled: cbAPIEnabled.checked,
+        apiKey: apiKeyInput.value.trim()
+      };
+      socket.emit('update-api-config', cfg);
+      apiConfigPanel.style.display = 'none';
+    }
+
+    // Panel Etiquetas
     function toggleLabelManager() {
       if (labelManagerPanel.style.display === 'none') {
         labelManagerPanel.style.display = 'block';
@@ -346,21 +364,17 @@
         labelManagerPanel.style.display = 'none';
       }
     }
-
     function renderGlobalLabels() {
       labelListDiv.innerHTML = '';
       allLabels.forEach(lbl => {
         const row = document.createElement('div');
         row.classList.add('label-row');
-
         const colorBox = document.createElement('span');
         colorBox.classList.add('label-color-box');
         colorBox.style.backgroundColor = lbl.color;
-
         const lblName = document.createElement('span');
         lblName.textContent = lbl.name;
         lblName.style.marginLeft = '6px';
-
         const delBtn = document.createElement('button');
         delBtn.textContent = 'Eliminar';
         delBtn.classList.add('delete-label-btn');
@@ -369,15 +383,12 @@
             socket.emit('delete-label', lbl.id);
           }
         };
-
         row.appendChild(colorBox);
         row.appendChild(lblName);
         row.appendChild(delBtn);
-
         labelListDiv.appendChild(row);
       });
     }
-
     function createLabel() {
       const data = {
         name: newLabelName.value.trim(),

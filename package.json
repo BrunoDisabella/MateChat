@@ -1,7 +1,7 @@
 {
   "name": "matechat",
   "version": "1.0.0",
-  "description": "MateChat adaptado para Railway, con API, webhook y etiquetas",
+  "description": "MateChat + Etiquetas + Webhook + Config API (adaptado a Railway)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
