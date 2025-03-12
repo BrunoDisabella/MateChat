@@ -99,7 +99,7 @@ client.on('disconnected', (reason) => {
   io.emit('connected', false);
 });
 
-// Mensaje entrante
+// Mensaje entrante (desde otros, o a veces fromMe si envías desde este mismo script)
 client.on('message', (message) => {
   console.log(`Mensaje de ${message.from}: ${message.body}`);
   // Emitimos al frontend
@@ -114,6 +114,19 @@ client.on('message', (message) => {
       from: message.from,
       body: message.body,
       fromMe: message.fromMe,
+      timestamp: message.timestamp
+    });
+  }
+});
+
+// NUEVO: Mensajes que tu cuenta genera (aunque sea desde la app oficial)
+client.on('message_create', (message) => {
+  // Si el mensaje es "fromMe", significa que lo enviaste tú mismo,
+  // ya sea desde este código o desde tu teléfono en modo multi-dispositivo.
+  if (message.fromMe && webhookConfig.onMessageSent) {
+    callWebhook('onMessageSent', {
+      to: message.to,
+      text: message.body,
       timestamp: message.timestamp
     });
   }
