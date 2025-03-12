@@ -1,0 +1,27 @@
+[phases.setup]
+aptPkgs = [
+  "libnss3",
+  "libatk1.0-0",
+  "libatk-bridge2.0-0",
+  "libx11-xcb1",
+  "libdrm2",
+  "libxkbcommon0",
+  "libgbm1",
+  "libasound2",
+  "xauth",
+  "libgtk-3-0",
+  "libxcb-dri3-0",
+  "libxcomposite1",
+  "libxdamage1",
+  "libxfixes3",
+  "libxrandr2",
+  "libdbus-1-3",
+  "libopengl0",
+  "libxshmfence-dev",
+  "libglu1-mesa",
+  "libgl1",
+  "libgl1-mesa-dev",
+  "libgbm-dev",
+  "libpango1.0-0",
+  "libpangocairo-1.0-0"
+]
