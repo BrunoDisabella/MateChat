@@ -13,13 +13,28 @@
         <div class="app-status" id="status">Esperando conexión...</div>
       </div>
       <div class="header-right">
+        <!-- Botón para administrar Etiquetas -->
         <button class="label-btn" onclick="toggleLabelManager()">Etiquetas</button>
+        <!-- Botón para el gestor de webhooks múltiples -->
         <button class="config-btn" onclick="toggleWebhookManager()">Gestor Webhooks</button>
       </div>
     </header>
 
-    <!-- Overlay de QR -->
-    <div class="qr-overlay" id="qr-code"></div>
+    <!-- Overlay de QR con estructura similar a WhatsApp -->
+    <div class="qr-overlay" id="qr-code">
+      <h2>Inicia sesión en MateChat</h2>
+      <p>Conecta tu cuenta de WhatsApp para enviar mensajes privados desde MateChat.</p>
+      <ol>
+        <li>Abre WhatsApp en tu teléfono.</li>
+        <li>Toca Menú en Android o Ajustes en iPhone.</li>
+        <li>Toca Dispositivos vinculados y, luego, Vincular un dispositivo.</li>
+        <li>Apunta tu teléfono hacia esta pantalla para escanear el código QR.</li>
+      </ol>
+      <img id="qr-image" src="" alt="QR">
+      <a href="#">Necesitas ayuda para empezar?</a>
+      <a href="#">Iniciar sesión con número de teléfono</a>
+      <div class="encryption-message">Tus mensajes personales están cifrados de extremo a extremo</div>
+    </div>
 
     <div class="main-content" id="main-content">
       <!-- Barra lateral de chats -->
@@ -53,7 +68,9 @@
     <!-- Panel Gestor de Webhooks -->
     <div class="webhook-manager-panel" id="webhook-manager-panel" style="display: none;">
       <h2>Gestor de Webhooks</h2>
-      <div id="webhook-list"></div>
+      <div id="webhook-list">
+        <!-- Se listarán los webhooks configurados -->
+      </div>
       <h3>Agregar nuevo Webhook</h3>
       <label>URL:</label>
       <input type="text" id="new-webhook-url" placeholder="https://tu-webhook.com">
@@ -101,15 +118,13 @@
 
     // Socket.IO events
     socket.on('qr', (qrUrl) => {
-      qrOverlay.innerHTML = `<img src="${qrUrl}" alt="QR">`;
-      qrOverlay.style.display = 'flex';
+      document.getElementById('qr-image').src = qrUrl; // Establece la imagen del QR
+      qrOverlay.style.display = 'block'; // Muestra la tarjeta del QR
       statusText.textContent = 'Escanea el QR';
     });
-
     socket.on('qr-error', (err) => {
       qrOverlay.innerHTML = `<p style="color:red;">${err}</p>`;
     });
-
     socket.on('connected', (isConnected) => {
       if (isConnected) {
         qrOverlay.style.display = 'none';
@@ -121,64 +136,37 @@
         statusText.textContent = 'Desconectado';
       }
     });
-
     socket.on('chats', (chats) => {
       renderChatList(chats);
     });
-
     socket.on('chat-history', (data) => {
       if (!selectedChat || selectedChat.id !== data.chatId) return;
       messageList.innerHTML = '';
       data.messages.forEach(msg => {
         const div = document.createElement('div');
         div.classList.add('message', msg.fromMe ? 'sent' : 'received');
-        if (msg.fromMe) {
-          div.setAttribute('data-message-id', msg.id);
-          div.innerHTML = `<span class="message-text">${msg.body}</span><span class="tick" style="color: #53bdeb;">✓✓</span>`;
-        } else {
-          div.innerHTML = `<span class="message-text">${msg.body}</span>`;
-        }
+        div.textContent = msg.body;
         messageList.appendChild(div);
       });
       messageList.scrollTop = messageList.scrollHeight;
     });
-
+    socket.on('chat-history-error', console.error);
     socket.on('new-message', (message) => {
       if (selectedChat && message.id === selectedChat.id) {
         const div = document.createElement('div');
         div.classList.add('message', message.fromMe ? 'sent' : 'received');
-        if (message.fromMe) {
-          div.setAttribute('data-message-id', message.id);
-          div.innerHTML = `<span class="message-text">${message.text}</span><span class="tick">✓</span>`;
-        } else {
-          div.innerHTML = `<span class="message-text">${message.text}</span>`;
-        }
+        div.textContent = message.text;
         messageList.appendChild(div);
         messageList.scrollTop = messageList.scrollHeight;
       }
     });
-
-    socket.on('message-created', (message) => {
-      if (selectedChat && message.to === selectedChat.id) {
+    socket.on('message-sent', (data) => {
+      if (selectedChat && data.to === selectedChat.id) {
         const div = document.createElement('div');
         div.classList.add('message', 'sent');
-        div.setAttribute('data-message-id', message.id);
-        div.innerHTML = `<span class="message-text">${message.text}</span><span class="tick">✓</span>`;
+        div.textContent = data.text;
         messageList.appendChild(div);
         messageList.scrollTop = messageList.scrollHeight;
-      }
-    });
-
-    socket.on('message-ack', (data) => {
-      const { messageId, ack } = data;
-      const messageDiv = document.querySelector(`.message[data-message-id="${messageId}"]`);
-      if (messageDiv) {
-        const tickSpan = messageDiv.querySelector('.tick');
-        if (tickSpan) {
-          if (ack >= 1) tickSpan.textContent = '✓';        // Enviado
-          if (ack >= 2) tickSpan.textContent = '✓✓';       // Entregado
-          if (ack >= 3) tickSpan.style.color = '#53bdeb';  // Leído (azul)
-        }
       }
     });
 
@@ -188,7 +176,6 @@
       renderGlobalLabels();
       socket.emit('chats');
     });
-
     socket.on('chat-labels-updated', (cl) => {
       chatLabels = cl;
       socket.emit('chats');
@@ -353,9 +340,7 @@
             newCbOnReceive.checked = false;
             newCbOnSent.checked = false;
           } else {
-            alert('
-
-Error al agregar webhook: ' + data.error);
+            alert('Error al agregar webhook: ' + data.error);
           }
         })
         .catch(error => {

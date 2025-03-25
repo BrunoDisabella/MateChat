@@ -1,4 +1,8 @@
-/* Estilo general inspirado en WhatsApp Web, con paneles flotantes, menú contextual para etiquetas y configuración (webhook). */
+/* 
+   Estilo general inspirado en WhatsApp Web,
+   con paneles flotantes, menú contextual para etiquetas,
+   y configuraciones (webhook).
+*/
 
 /* Reset básico */
 * {
@@ -13,7 +17,7 @@
     height: 100vh;
     display: flex;
     flex-direction: column;
-    background: #f0f2f5;
+    background: #f8f5e9; /* Fondo beige claro como WhatsApp */
 }
 
 /* Encabezado principal (barra superior) */
@@ -21,8 +25,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #075e54;
-    color: white;
+    background: transparent; /* Sin fondo verde, se mezcla con el beige */
+    color: #000; /* Texto negro para visibilidad */
     padding: 10px 20px;
 }
 
@@ -35,55 +39,105 @@
 .app-logo {
     font-size: 1.5em;
     font-weight: bold;
+    color: #25D366; /* Verde de WhatsApp para el logo */
 }
 
 .app-status {
     font-size: 0.9em;
+    color: #333; /* Gris oscuro para el estado */
 }
 
 .header-right {
     display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .config-btn,
 .label-btn {
-    background: #128c7e;
+    background: #25D366; /* Verde de WhatsApp */
     color: white;
     border: none;
     padding: 8px 14px;
-    border-radius: 6px;
+    border-radius: 20px; /* Botones más redondeados */
     cursor: pointer;
     font-size: 0.9em;
 }
 
 .config-btn:hover,
 .label-btn:hover {
-    background: #0f7b6f;
+    background: #20b858; /* Verde un poco más oscuro al pasar el mouse */
 }
 
 /* Superposición del QR */
 .qr-overlay {
     display: none;
     position: absolute;
-    width: 100%;
-    height: calc(100% - 50px);
-    background: rgba(0, 0, 0, 0.5);
-    top: 50px;
-    left: 0;
-    justify-content: center;
-    align-items: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white; /* Fondo blanco como la tarjeta de WhatsApp */
+    border-radius: 10px; /* Bordes redondeados */
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Sombra suave */
+    max-width: 600px; /* Ancho máximo */
+    width: 90%; /* Responsivo */
+    text-align: center; /* Texto centrado */
+}
+
+.qr-overlay h2 {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #000; /* Negro para el título */
+}
+
+.qr-overlay p {
+    font-size: 0.95em;
+    color: #333; /* Gris oscuro para la descripción */
+    margin-bottom: 15px;
+}
+
+.qr-overlay ol {
+    font-size: 0.95em;
+    color: #333; /* Gris oscuro para las instrucciones */
+    margin-bottom: 15px;
+    padding-left: 20px; /* Sangría para la lista */
+    text-align: left; /* Alineación izquierda para las instrucciones */
 }
 
 .qr-overlay img {
     background: white;
     padding: 20px;
     border-radius: 10px;
+    max-width: 300px; /* Tamaño del QR */
+    margin: 0 auto; /* Centrado */
+    display: block; /* Asegura que esté bien posicionado */
+}
+
+.qr-overlay a {
+    color: #25D366; /* Verde de WhatsApp para los enlaces */
+    text-decoration: none;
+    font-size: 0.9em;
+    display: block; /* Cada enlace en su propia línea */
+    margin: 5px 0; /* Espaciado entre enlaces */
+}
+
+.qr-overlay a:hover {
+    text-decoration: underline; /* Subrayado al pasar el mouse */
+}
+
+.encryption-message {
+    text-align: center;
+    font-size: 0.8em;
+    color: #666; /* Gris claro para el mensaje de cifrado */
+    margin-top: 20px;
 }
 
 /* Contenedor principal para la barra lateral y el área de chat */
 .main-content {
     flex: 1;
-    display: flex;
+    display: none; /* Oculto por defecto hasta que se conecte */
     overflow: hidden;
 }
 
@@ -168,16 +222,6 @@
     background: #fff;
     align-self: flex-start;
     border: 1px solid #ebebeb;
-}
-
-.message-text {
-    word-wrap: break-word;
-}
-
-.tick {
-    font-size: 12px;
-    color: #999; /* Gris por defecto */
-    margin-left: 10px;
 }
 
 .chat-input-container {
