@@ -76,11 +76,11 @@
       <input type="text" id="new-webhook-url" placeholder="https://tu-webhook.com">
       <div class="checkbox-row">
         <input type="checkbox" id="new-cb-onreceive">
-        <label>onMessageReceived</label>
+        <label>MensajeRecibidos</label>
       </div>
       <div class="checkbox-row">
         <input type="checkbox" id="new-cb-onsent">
-        <label>onMessageSent</label>
+        <label>MensajeEnviado</label>
       </div>
       <button class="save-config-btn" onclick="addWebhook()">Agregar Webhook</button>
     </div>
@@ -145,7 +145,7 @@
       data.messages.forEach(msg => {
         const div = document.createElement('div');
         div.classList.add('message', msg.fromMe ? 'sent' : 'received');
-        div.textContent = msg.body;
+        div.innerHTML = `<span class="message-text">${msg.body}</span>`;
         messageList.appendChild(div);
       });
       messageList.scrollTop = messageList.scrollHeight;
@@ -155,7 +155,7 @@
       if (selectedChat && message.id === selectedChat.id) {
         const div = document.createElement('div');
         div.classList.add('message', message.fromMe ? 'sent' : 'received');
-        div.textContent = message.text;
+        div.innerHTML = `<span class="message-text">${message.text}</span>`;
         messageList.appendChild(div);
         messageList.scrollTop = messageList.scrollHeight;
       }
@@ -164,7 +164,7 @@
       if (selectedChat && data.to === selectedChat.id) {
         const div = document.createElement('div');
         div.classList.add('message', 'sent');
-        div.textContent = data.text;
+        div.innerHTML = `<span class="message-text">${data.text}</span>`;
         messageList.appendChild(div);
         messageList.scrollTop = messageList.scrollHeight;
       }
@@ -309,21 +309,21 @@
         const div = document.createElement('div');
         div.classList.add('webhook-item');
         div.innerHTML = `<span>${hook.url}</span>
-          <span>${hook.onMessageReceived ? 'Recibe' : ''}</span>
-          <span>${hook.onMessageSent ? 'Envía' : ''}</span>
+          <span>${hook.MensajeRecibidos ? 'Recibe' : ''}</span>
+          <span>${hook.MensajeEnviado ? 'Envía' : ''}</span>
           <button onclick="deleteWebhook('${hook.url}')">Eliminar</button>`;
         webhookListDiv.appendChild(div);
       });
     }
     function addWebhook() {
       const url = newWebhookUrl.value.trim();
-      const onMessageReceived = newCbOnReceive.checked;
-      const onMessageSent = newCbOnSent.checked;
+      const MensajeRecibidos = newCbOnReceive.checked;
+      const MensajeEnviado = newCbOnSent.checked;
       if (!url) {
         alert('La URL es obligatoria');
         return;
       }
-      const newWebhook = { url, onMessageReceived, onMessageSent };
+      const newWebhook = { url, MensajeRecibidos, MensajeEnviado };
       fetch('/api/webhooks', {
         method: 'POST',
         headers: {

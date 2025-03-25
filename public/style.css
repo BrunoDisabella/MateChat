@@ -205,23 +205,53 @@
 .message {
     display: block;
     margin-bottom: 10px;
-    padding: 8px 12px;
-    border-radius: 7px;
-    max-width: 75%;
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 70%;
     line-height: 1.4;
     word-wrap: break-word;
     font-size: 0.95em;
+    position: relative;
 }
 
 .message.sent {
-    background: #d2f8d2;
+    background: #dcf8c6; /* Verde claro similar a WhatsApp */
     align-self: flex-end;
+    border-radius: 10px 10px 0 10px; /* Sin redondeo en la esquina inferior derecha */
+    padding: 10px;
+    max-width: 70%;
+    position: relative;
+}
+
+.message.sent::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: -10px;
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-top: 10px solid #dcf8c6; /* Cola del mismo color que el fondo */
 }
 
 .message.received {
-    background: #fff;
+    background: #ffffff; /* Blanco */
     align-self: flex-start;
-    border: 1px solid #ebebeb;
+    border-radius: 10px 10px 10px 0; /* Sin redondeo en la esquina inferior izquierda */
+    padding: 10px;
+    max-width: 70%;
+    position: relative;
+}
+
+.message.received::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: -10px;
+    width: 0;
+    height: 0;
+    border-right: 10px solid transparent;
+    border-top: 10px solid #ffffff; /* Cola del mismo color que el fondo */
 }
 
 .chat-input-container {
