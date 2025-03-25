@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>MateChat</title>
+  <title>MateChat - Railway + Etiquetas + API SIEMPRE habilitada</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,13 +12,22 @@
         <div class="app-logo">MateChat</div>
         <div class="app-status" id="status">Esperando conexión...</div>
       </div>
+      <div class="header-right">
+        <button class="label-btn" onclick="toggleLabelManager()">Etiquetas</button>
+        <button class="config-btn" onclick="toggleWebhookManager()">Gestor Webhooks</button>
+      </div>
     </header>
 
+    <!-- Overlay de QR -->
+    <div class="qr-overlay" id="qr-code"></div>
+
     <div class="main-content" id="main-content">
+      <!-- Barra lateral de chats -->
       <aside class="sidebar">
         <div class="sidebar-header">Chats</div>
         <ul class="chat-list" id="chat-list"></ul>
       </aside>
+      <!-- Área de mensajes -->
       <section class="chat-area">
         <div class="chat-header" id="chat-header">
           <h3>Selecciona un chat</h3>
@@ -30,56 +39,352 @@
         </div>
       </section>
     </div>
+
+    <!-- Panel Etiquetas -->
+    <div class="label-manager-panel" id="label-manager-panel" style="display:none;">
+      <h2>Etiquetas Globales</h2>
+      <div id="label-list"></div>
+      <h3>Nueva etiqueta</h3>
+      <input type="text" id="new-label-name" placeholder="Nombre...">
+      <input type="color" id="new-label-color" value="#dd3333">
+      <button class="add-label-btn" onclick="createLabel()">Crear</button>
+    </div>
+
+    <!-- Panel Gestor de Webhooks -->
+    <div class="webhook-manager-panel" id="webhook-manager-panel" style="display: none;">
+      <h2>Gestor de Webhooks</h2>
+      <div id="webhook-list"></div>
+      <h3>Agregar nuevo Webhook</h3>
+      <label>URL:</label>
+      <input type="text" id="new-webhook-url" placeholder="https://tu-webhook.com">
+      <div class="checkbox-row">
+        <input type="checkbox" id="new-cb-onreceive">
+        <label>onMessageReceived</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="new-cb-onsent">
+        <label>onMessageSent</label>
+      </div>
+      <button class="save-config-btn" onclick="addWebhook()">Agregar Webhook</button>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
+
+    const statusText = document.getElementById('status');
+    const qrOverlay = document.getElementById('qr-code');
+    const mainContent = document.getElementById('main-content');
+    const chatList = document.getElementById('chat-list');
+    const chatHeader = document.getElementById('chat-header');
     const messageList = document.getElementById('message-list');
     const messageInput = document.getElementById('message-input');
+    const messageSection = document.getElementById('message-section');
+
+    // Panel Etiquetas
+    const labelManagerPanel = document.getElementById('label-manager-panel');
+    const labelListDiv = document.getElementById('label-list');
+    const newLabelName = document.getElementById('new-label-name');
+    const newLabelColor = document.getElementById('new-label-color');
+
+    // Panel Gestor de Webhooks
+    const webhookManagerPanel = document.getElementById('webhook-manager-panel');
+    const webhookListDiv = document.getElementById('webhook-list');
+    const newWebhookUrl = document.getElementById('new-webhook-url');
+    const newCbOnReceive = document.getElementById('new-cb-onreceive');
+    const newCbOnSent = document.getElementById('new-cb-onsent');
+
     let selectedChat = null;
+    let allLabels = [];
+    let chatLabels = {};
+
+    // Socket.IO events
+    socket.on('qr', (qrUrl) => {
+      qrOverlay.innerHTML = `<img src="${qrUrl}" alt="QR">`;
+      qrOverlay.style.display = 'flex';
+      statusText.textContent = 'Escanea el QR';
+    });
+
+    socket.on('qr-error', (err) => {
+      qrOverlay.innerHTML = `<p style="color:red;">${err}</p>`;
+    });
+
+    socket.on('connected', (isConnected) => {
+      if (isConnected) {
+        qrOverlay.style.display = 'none';
+        mainContent.style.display = 'flex';
+        statusText.textContent = 'Conectado a WhatsApp';
+        socket.emit('get-all-labels');
+      } else {
+        mainContent.style.display = 'none';
+        statusText.textContent = 'Desconectado';
+      }
+    });
+
+    socket.on('chats', (chats) => {
+      renderChatList(chats);
+    });
 
     socket.on('chat-history', (data) => {
+      if (!selectedChat || selectedChat.id !== data.chatId) return;
       messageList.innerHTML = '';
       data.messages.forEach(msg => {
         const div = document.createElement('div');
         div.classList.add('message', msg.fromMe ? 'sent' : 'received');
-        div.innerHTML = `<span>${msg.body}</span><span class="tick">${msg.fromMe ? '✓✓' : ''}</span>`;
+        if (msg.fromMe) {
+          div.setAttribute('data-message-id', msg.id);
+          div.innerHTML = `<span class="message-text">${msg.body}</span><span class="tick" style="color: #53bdeb;">✓✓</span>`;
+        } else {
+          div.innerHTML = `<span class="message-text">${msg.body}</span>`;
+        }
         messageList.appendChild(div);
       });
+      messageList.scrollTop = messageList.scrollHeight;
     });
 
     socket.on('new-message', (message) => {
       if (selectedChat && message.id === selectedChat.id) {
         const div = document.createElement('div');
         div.classList.add('message', message.fromMe ? 'sent' : 'received');
-        div.innerHTML = `<span>${message.text}</span><span class="tick">${message.fromMe ? '✓' : ''}</span>`;
+        if (message.fromMe) {
+          div.setAttribute('data-message-id', message.id);
+          div.innerHTML = `<span class="message-text">${message.text}</span><span class="tick">✓</span>`;
+        } else {
+          div.innerHTML = `<span class="message-text">${message.text}</span>`;
+        }
         messageList.appendChild(div);
         messageList.scrollTop = messageList.scrollHeight;
       }
     });
+
+    socket.on('message-created', (message) => {
+      if (selectedChat && message.to === selectedChat.id) {
+        const div = document.createElement('div');
+        div.classList.add('message', 'sent');
+        div.setAttribute('data-message-id', message.id);
+        div.innerHTML = `<span class="message-text">${message.text}</span><span class="tick">✓</span>`;
+        messageList.appendChild(div);
+        messageList.scrollTop = messageList.scrollHeight;
+      }
+    });
+
+    socket.on('message-ack', (data) => {
+      const { messageId, ack } = data;
+      const messageDiv = document.querySelector(`.message[data-message-id="${messageId}"]`);
+      if (messageDiv) {
+        const tickSpan = messageDiv.querySelector('.tick');
+        if (tickSpan) {
+          if (ack >= 1) tickSpan.textContent = '✓';        // Enviado
+          if (ack >= 2) tickSpan.textContent = '✓✓';       // Entregado
+          if (ack >= 3) tickSpan.style.color = '#53bdeb';  // Leído (azul)
+        }
+      }
+    });
+
+    // Etiquetas
+    socket.on('all-labels', (labels) => {
+      allLabels = labels;
+      renderGlobalLabels();
+      socket.emit('chats');
+    });
+
+    socket.on('chat-labels-updated', (cl) => {
+      chatLabels = cl;
+      socket.emit('chats');
+    });
+
+    // Render Chat List
+    function renderChatList(chats) {
+      chatList.innerHTML = '';
+      chats.forEach(chat => {
+        const li = document.createElement('li');
+        li.classList.add('chat-item');
+        li.textContent = chat.name;
+
+        // Etiquetas (badges)
+        const badgeContainer = document.createElement('div');
+        badgeContainer.style.marginTop = '5px';
+        if (chatLabels[chat.id]) {
+          chatLabels[chat.id].forEach(labelId => {
+            const lbl = allLabels.find(l => l.id === labelId);
+            if (lbl) {
+              const badge = document.createElement('span');
+              badge.classList.add('label-badge');
+              badge.style.backgroundColor = lbl.color;
+              badge.textContent = lbl.name;
+              badgeContainer.appendChild(badge);
+            }
+          });
+        }
+        li.appendChild(badgeContainer);
+
+        // click => abrir chat
+        li.onclick = () => selectChat({ id: chat.id, name: chat.name });
+        chatList.appendChild(li);
+      });
+    }
+
+    function selectChat(chat) {
+      selectedChat = chat;
+      chatHeader.innerHTML = `<h3>${chat.name}</h3>`;
+      messageSection.style.display = 'flex';
+      messageList.innerHTML = '';
+      socket.emit('select-chat', chat.id);
+      messageInput.focus();
+    }
 
     function sendMessage() {
       if (selectedChat && messageInput.value.trim()) {
         const text = messageInput.value;
         socket.emit('send-message', { to: selectedChat.id, text });
         messageInput.value = '';
-        // Simular tick de enviado
-        const div = document.createElement('div');
-        div.classList.add('message', 'sent');
-        div.innerHTML = `<span>${text}</span><span class="tick">✓</span>`;
-        messageList.appendChild(div);
-        messageList.scrollTop = messageList.scrollHeight;
-        // Simular tick de entregado después de 1 segundo
-        setTimeout(() => {
-          div.querySelector('.tick').textContent = '✓✓';
-        }, 1000);
-        // Simular tick de leído después de 2 segundos
-        setTimeout(() => {
-          div.querySelector('.tick').textContent = '✓✓';
-          div.querySelector('.tick').style.color = '#53bdeb';
-        }, 2000);
       }
+    }
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    // Etiquetas
+    function renderGlobalLabels() {
+      labelListDiv.innerHTML = '';
+      allLabels.forEach(lbl => {
+        const row = document.createElement('div');
+        row.classList.add('label-row');
+        const colorBox = document.createElement('span');
+        colorBox.classList.add('label-color-box');
+        colorBox.style.backgroundColor = lbl.color;
+        const lblName = document.createElement('span');
+        lblName.textContent = lbl.name;
+        lblName.style.marginLeft = '6px';
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Eliminar';
+        delBtn.classList.add('delete-label-btn');
+        delBtn.onclick = () => {
+          if (confirm('¿Eliminar etiqueta?')) {
+            socket.emit('delete-label', lbl.id);
+          }
+        };
+        row.appendChild(colorBox);
+        row.appendChild(lblName);
+        row.appendChild(delBtn);
+        labelListDiv.appendChild(row);
+      });
+    }
+    function createLabel() {
+      const data = {
+        name: newLabelName.value.trim(),
+        color: newLabelColor.value
+      };
+      if (!data.name) {
+        alert('Falta nombre de etiqueta');
+        return;
+      }
+      socket.emit('create-label', data);
+      newLabelName.value = '';
+      newLabelColor.value = '#dd3333';
+    }
+    function toggleLabelManager() {
+      labelManagerPanel.style.display = (labelManagerPanel.style.display === 'none') ? 'block' : 'none';
+      if (labelManagerPanel.style.display === 'block') {
+        socket.emit('get-all-labels');
+      }
+    }
+
+    // Gestor de Webhooks
+    function toggleWebhookManager() {
+      webhookManagerPanel.style.display = (webhookManagerPanel.style.display === 'none') ? 'block' : 'none';
+      if (webhookManagerPanel.style.display === 'block') {
+        fetchWebhooks();
+      }
+    }
+    function fetchWebhooks() {
+      fetch('/api/webhooks')
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            renderWebhookList(data.webhooks);
+          } else {
+            alert('Error al obtener webhooks');
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching webhooks', error);
+        });
+    }
+    function renderWebhookList(webhooks) {
+      webhookListDiv.innerHTML = '';
+      if (webhooks.length === 0) {
+        webhookListDiv.innerHTML = '<p>No hay webhooks configurados.</p>';
+        return;
+      }
+      webhooks.forEach(hook => {
+        const div = document.createElement('div');
+        div.classList.add('webhook-item');
+        div.innerHTML = `<span>${hook.url}</span>
+          <span>${hook.onMessageReceived ? 'Recibe' : ''}</span>
+          <span>${hook.onMessageSent ? 'Envía' : ''}</span>
+          <button onclick="deleteWebhook('${hook.url}')">Eliminar</button>`;
+        webhookListDiv.appendChild(div);
+      });
+    }
+    function addWebhook() {
+      const url = newWebhookUrl.value.trim();
+      const onMessageReceived = newCbOnReceive.checked;
+      const onMessageSent = newCbOnSent.checked;
+      if (!url) {
+        alert('La URL es obligatoria');
+        return;
+      }
+      const newWebhook = { url, onMessageReceived, onMessageSent };
+      fetch('/api/webhooks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newWebhook)
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert('Webhook agregado');
+            fetchWebhooks();
+            newWebhookUrl.value = '';
+            newCbOnReceive.checked = false;
+            newCbOnSent.checked = false;
+          } else {
+            alert('
+
+Error al agregar webhook: ' + data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error adding webhook:', error);
+          alert('Error al agregar webhook');
+        });
+    }
+    function deleteWebhook(url) {
+      if (!confirm('¿Eliminar este webhook?')) return;
+      fetch('/api/webhooks', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url })
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert('Webhook eliminado');
+            fetchWebhooks();
+          } else {
+            alert('Error al eliminar webhook: ' + data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error deleting webhook:', error);
+          alert('Error al eliminar webhook');
+        });
     }
   </script>
 </body>
