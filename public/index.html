@@ -13,9 +13,6 @@
         <div class="app-status" id="status">Esperando conexión...</div>
       </div>
       <div class="header-right">
-        <!-- Panel Webhook original (uno solo) si quieres conservarlo:
-             <button class="config-btn" onclick="toggleConfigPanel()">Config webhook</button>
-        -->
         <!-- Botón para administrar Etiquetas -->
         <button class="label-btn" onclick="toggleLabelManager()">Etiquetas</button>
         <!-- Botón para el gestor de webhooks múltiples -->
@@ -23,8 +20,21 @@
       </div>
     </header>
 
-    <!-- Overlay de QR -->
-    <div class="qr-overlay" id="qr-code"></div>
+    <!-- Overlay de QR con estructura similar a WhatsApp -->
+    <div class="qr-overlay" id="qr-code">
+      <h2>Inicia sesión en MateChat</h2>
+      <p>Conecta tu cuenta de WhatsApp para enviar mensajes privados desde MateChat.</p>
+      <ol>
+        <li>Abre WhatsApp en tu teléfono.</li>
+        <li>Toca Menú en Android o Ajustes en iPhone.</li>
+        <li>Toca Dispositivos vinculados y, luego, Vincular un dispositivo.</li>
+        <li>Apunta tu teléfono hacia esta pantalla para escanear el código QR.</li>
+      </ol>
+      <img id="qr-image" src="" alt="QR">
+      <a href="#">Necesitas ayuda para empezar?</a>
+      <a href="#">Iniciar sesión con número de teléfono</a>
+      <div class="encryption-message">Tus mensajes personales están cifrados de extremo a extremo</div>
+    </div>
 
     <div class="main-content" id="main-content">
       <!-- Barra lateral de chats -->
@@ -44,23 +54,6 @@
         </div>
       </section>
     </div>
-
-    <!-- (Opcional) Panel Webhook único, si lo deseas conservar:
-    <div class="config-panel" id="config-panel" style="display: none;">
-      <h2>Config Webhook</h2>
-      <label>URL:</label>
-      <input type="text" id="webhook-url">
-      <div class="checkbox-row">
-        <input type="checkbox" id="cb-onreceive">
-        <label>onMessageReceived</label>
-      </div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="cb-onsent">
-        <label>onMessageSent</label>
-      </div>
-      <button class="save-config-btn" onclick="saveWebhookConfig()">Guardar</button>
-    </div>
-    -->
 
     <!-- Panel Etiquetas -->
     <div class="label-manager-panel" id="label-manager-panel" style="display:none;">
@@ -125,8 +118,8 @@
 
     // Socket.IO events
     socket.on('qr', (qrUrl) => {
-      qrOverlay.innerHTML = `<img src="${qrUrl}" alt="QR">`;
-      qrOverlay.style.display = 'flex';
+      document.getElementById('qr-image').src = qrUrl; // Establece la imagen del QR
+      qrOverlay.style.display = 'block'; // Muestra la tarjeta del QR
       statusText.textContent = 'Escanea el QR';
     });
     socket.on('qr-error', (err) => {
