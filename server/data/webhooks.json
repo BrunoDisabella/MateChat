@@ -1,0 +1,10 @@
+[
+  {
+    "id": "83cc189c-3af7-421a-a5a8-c029b1334d00",
+    "url": "https://n8n.losgurises.com.uy/webhook-test/404edda6-1756-4120-8016-abcfe43c8afe",
+    "events": [
+      "message",
+      "message_create"
+    ]
+  }
+]

@@ -1,0 +1,208 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "404edda6-1756-4120-8016-abcfe43c8afe",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [
+                0,
+                0
+            ],
+            "id": "webhook-node",
+            "name": "Webhook"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{ $json.body.data.labels.map(l => l.name).includes('Caliente') }}",
+                            "value2": true
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                250,
+                0
+            ],
+            "id": "check-label",
+            "name": "Tiene Etiqueta Caliente?"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://f20b5cea78c8.ngrok-free.app/api/labels/remove",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "x-api-key",
+                            "value": "matechat-secret-local"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "chatId",
+                            "value": "={{ $json.body.data.chatId }}"
+                        },
+                        {
+                            "name": "label",
+                            "value": "Caliente"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                500,
+                -100
+            ],
+            "id": "remove-label",
+            "name": "Quitar Caliente"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://f20b5cea78c8.ngrok-free.app/api/labels/assign",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "x-api-key",
+                            "value": "matechat-secret-local"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "chatId",
+                            "value": "={{ $json.body.data.chatId }}"
+                        },
+                        {
+                            "name": "label",
+                            "value": "Recompra"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                750,
+                -100
+            ],
+            "id": "add-label",
+            "name": "Asignar Recompra"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://f20b5cea78c8.ngrok-free.app/api/messages/send",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "x-api-key",
+                            "value": "matechat-secret-local"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "chatId",
+                            "value": "={{ $json.body.data.chatId }}"
+                        },
+                        {
+                            "name": "text",
+                            "value": "Etiqueta actualizada a Recompra"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                1000,
+                -100
+            ],
+            "id": "notify-change",
+            "name": "Confirmar Cambio (Opcional)"
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Tiene Etiqueta Caliente?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tiene Etiqueta Caliente?": {
+            "main": [
+                [
+                    {
+                        "node": "Quitar Caliente",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Quitar Caliente": {
+            "main": [
+                [
+                    {
+                        "node": "Asignar Recompra",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Asignar Recompra": {
+            "main": [
+                [
+                    {
+                        "node": "Notify Change (Optional)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

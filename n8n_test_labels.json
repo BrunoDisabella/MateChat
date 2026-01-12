@@ -1,0 +1,130 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "seconds",
+                            "seconds": 10
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.trigger",
+            "typeVersion": 1,
+            "position": [
+                0,
+                0
+            ],
+            "id": "trigger",
+            "name": "Manual Trigger (Double Click)"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://f20b5cea78c8.ngrok-free.app/api/labels/assign",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "x-api-key",
+                            "value": "matechat-secret-local"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "chatId",
+                            "value": "59892197594"
+                        },
+                        {
+                            "name": "label",
+                            "value": "Caliente"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                250,
+                0
+            ],
+            "id": "assign-label",
+            "name": "1. Asignar 'Caliente'"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://f20b5cea78c8.ngrok-free.app/api/labels/remove",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "x-api-key",
+                            "value": "matechat-secret-local"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "chatId",
+                            "value": "59892197594"
+                        },
+                        {
+                            "name": "label",
+                            "value": "Caliente"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                500,
+                0
+            ],
+            "id": "remove-label",
+            "name": "2. Quitar 'Caliente'"
+        }
+    ],
+    "connections": {
+        "Manual Trigger (Double Click)": {
+            "main": [
+                [
+                    {
+                        "node": "1. Asignar 'Caliente'",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "1. Asignar 'Caliente'": {
+            "main": [
+                [
+                    {
+                        "node": "2. Quitar 'Caliente'",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

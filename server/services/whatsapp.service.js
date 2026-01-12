@@ -1,0 +1,450 @@
+import pkg from 'whatsapp-web.js';
+const { Client, LocalAuth } = pkg;
+import axios from 'axios';
+import { config } from '../config/index.js';
+import fs from 'fs';
+import path from 'path';
+
+class WhatsAppService {
+    constructor() {
+        this.clients = new Map();
+        this.eventHandlers = new Map(); // Para comunicar eventos al SocketService sin dependencia circular directa
+    }
+
+    on(event, callback) {
+        if (!this.eventHandlers.has(event)) {
+            this.eventHandlers.set(event, []);
+        }
+        this.eventHandlers.get(event).push(callback);
+    }
+
+    emit(event, data) {
+        const handlers = this.eventHandlers.get(event);
+        if (handlers) {
+            handlers.forEach(cb => cb(data));
+        }
+    }
+
+    initializeClient(userId = 'default-user') {
+        if (this.clients.has(userId)) {
+            console.log(`Client ${userId} already initialized`);
+            return this.clients.get(userId);
+        }
+
+        console.log(`Initializing WhatsApp client for ${userId}...`);
+        this.emit('status_change', { status: 'INITIALIZING', userId });
+
+        const client = new Client({
+            authStrategy: new LocalAuth({ clientId: userId }),
+            puppeteer: {
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            }
+        });
+
+        this.setupClientListeners(client, userId);
+        client.initialize();
+        this.clients.set(userId, client);
+        return client;
+    }
+
+    setupClientListeners(client, userId) {
+        client.on('qr', (qr) => {
+            console.log('QR RECEIVED');
+            this.emit('qr', { qr, userId });
+        });
+
+        client.on('ready', () => {
+            console.log('WhatsApp Client is ready!');
+            this.emit('ready', { userId });
+        });
+
+        client.on('authenticated', () => {
+            console.log('WhatsApp Client authenticated');
+            this.emit('authenticated', { userId });
+        });
+
+        client.on('auth_failure', (msg) => {
+            console.error('AUTHENTICATION FAILURE', msg);
+            this.emit('auth_failure', { msg, userId });
+        });
+
+        client.on('message', async (msg) => {
+            console.log('MESSAGE RECEIVED:', msg.body);
+            this.handleWebhook(msg, 'message'); // 'message' = received
+            this.emit('message', { msg, userId });
+        });
+
+        // NEW: Trigger for SENT messages
+        client.on('message_create', async (msg) => {
+            console.log(`[DEBUG] message_create observed. fromMe: ${msg.fromMe} | ${msg.body.substring(0, 20)}...`);
+            if (msg.fromMe) {
+                console.log('MESSAGE SENT (Self): Triggering Webhook...');
+                this.handleWebhook(msg, 'message_create'); // 'message_create' includes sent
+            }
+        });
+
+        client.on('disconnected', (reason) => {
+            console.log('Client was logged out', reason);
+            this.emit('disconnected', { reason, userId });
+            this.clients.delete(userId);
+        });
+    }
+
+    async handleWebhook(msg, eventType = 'message') {
+        try {
+            const webhooksPath = path.resolve(process.cwd(), 'server', 'data', 'webhooks.json');
+            if (!fs.existsSync(webhooksPath)) return;
+
+            const webhooksData = fs.readFileSync(webhooksPath, 'utf8');
+            let webhooks = [];
+            try { webhooks = JSON.parse(webhooksData || '[]'); } catch (e) { }
+
+            if (!webhooks.length) return;
+
+            // Prepare Legacy Payload
+            let legacyEvent = 'message.received';
+            if (eventType === 'message_create' && msg.fromMe) {
+                legacyEvent = 'message.sent';
+            }
+
+            const chat = await msg.getChat();
+            const contact = await msg.getContact();
+
+            // Format Timestamp to ISO
+            const isoTimestamp = new Date(msg.timestamp * 1000).toISOString();
+
+            // Get Labels/Tags
+            let labels = [];
+            try {
+                const fetchedLabels = await chat.getLabels();
+                if (fetchedLabels && fetchedLabels.length > 0) {
+                    labels = fetchedLabels.map(l => ({
+                        id: l.id,
+                        name: l.name,
+                        color: l.hexColor
+                    }));
+                }
+            } catch (e) {
+                // Ignore label fetch errors
+            }
+
+            const payload = {
+                event: legacyEvent,
+                timestamp: isoTimestamp,
+                data: {
+                    id: msg.id._serialized,
+                    body: msg.body,
+                    from: msg.from,
+                    to: msg.to,
+                    fromMe: msg.fromMe,
+                    type: msg.type,
+                    timestamp: msg.timestamp,
+                    chatId: chat.id._serialized,
+                    hasMedia: msg.hasMedia,
+                    isGroup: chat.isGroup,
+                    author: msg.author || msg.from,
+                    pushname: contact?.pushname || contact?.name || contact?.number,
+                    labels: labels
+                }
+            };
+
+            // Send to compatible webhooks
+            console.log(`[Webhook] Processing ${legacyEvent} for ${webhooks.length} hooks`);
+
+            webhooks.forEach(async (hook) => {
+                const hookEvents = hook.events || [];
+                // Compatibility check: 'message' matches 'message.received', 'message_create' matches 'message.sent'
+                let shouldSend = false;
+                if (legacyEvent === 'message.received' && hookEvents.includes('message')) shouldSend = true;
+                if (legacyEvent === 'message.sent' && hookEvents.includes('message_create')) shouldSend = true;
+
+                if (!shouldSend) return;
+
+                try {
+                    console.log(`[Webhook] Sending to ${hook.url}`);
+                    await axios.post(hook.url, payload);
+                } catch (err) {
+                    console.error(`[Webhook] Failed to send to ${hook.url}:`, err.message);
+                }
+            });
+
+        } catch (error) {
+            console.error('[Webhook] Error processing webhooks:', error);
+        }
+    }
+
+    getClient(userId) {
+        return this.clients.get(userId);
+    }
+
+    async getChatMessages(userId, chatId, { limit = 50, before = null } = {}) {
+        const client = this.clients.get(userId);
+        if (!client) return [];
+
+        try {
+            // Obtener objeto chat
+            const chat = await client.getChatById(chatId);
+            if (!chat) {
+                console.warn(`[DEBUG] Chat not found for ID: ${chatId}`);
+                return [];
+            }
+
+            console.log(`[DEBUG] Fetching ${limit} messages for chat ${chat.name}...`);
+
+            const options = { limit };
+            if (before) {
+                options.before = before;
+            }
+
+            const messages = await chat.fetchMessages(options);
+
+            // Mapear mensajes al formato del frontend
+            return messages.map(msg => {
+                // Determinar tipo de medio y datos
+                let mediaUrl = null; // En producción, esto debería ser una URL pública o base64
+                // Por ahora, manejamos base64 si ya viene (raro en fetchMessages histórico sin download)
+                // OJO: fetchMessages histórico NO descarga medios automáticamente.
+                // Habría que hacer msg.downloadMedia() bajo demanda. 
+                // Para MVP, solo devolvemos metadatos de medio.
+
+                return {
+                    id: msg.id._serialized,
+                    fromMe: msg.fromMe,
+                    content: msg.body,
+                    type: msg.type,
+                    timestamp: msg.timestamp,
+                    hasMedia: msg.hasMedia,
+                    // Si necesitamos media, iría aqui. Por ahora simplificado.
+                    media: msg.hasMedia ? { mimetype: 'unknown' } : undefined
+                };
+            });
+
+        } catch (e) {
+            console.error('Error fetching chat messages:', e);
+            return [];
+        }
+    }
+
+    async getFormattedChats(userId) {
+        const client = this.clients.get(userId);
+        if (!client) return [];
+
+        try {
+            console.log('[DEBUG] Start fetching chats from WA...');
+            const chats = await client.getChats();
+            console.log(`[DEBUG] Fetched ${chats.length} raw chats.`);
+
+            // Mapeo enriquecido con hidratación de etiquetas
+            const formattedChats = await Promise.all(chats.map(async chat => {
+                let labelIds = chat.labels || [];
+
+                // Hidratación forzada de etiquetas
+                if ((!labelIds || labelIds.length === 0)) {
+                    try {
+                        const fetchedLabels = await chat.getLabels();
+                        if (fetchedLabels && fetchedLabels.length > 0) {
+                            labelIds = fetchedLabels.map(l => l.id);
+                        }
+                    } catch (err) {
+                        // Silenciar errores de fetching individual
+                    }
+                }
+
+                return {
+                    id: chat.id._serialized,
+                    name: chat.name,
+                    unreadCount: chat.unreadCount,
+                    timestamp: chat.timestamp,
+                    lastMessage: chat.lastMessage ? {
+                        body: chat.lastMessage.body,
+                        timestamp: chat.lastMessage.timestamp,
+                        hasMedia: chat.lastMessage.hasMedia
+                    } : {},
+                    isGroup: chat.isGroup,
+                    labels: labelIds,
+                    profilePicUrl: undefined // Se llenará en la siguiente fase
+                };
+            }));
+
+            // DEBUG: Hidratación de fotos de perfil explícita
+            /* console.log('[DEBUG] Hydrating profile pics for top 20 chats...');
+            await Promise.all(formattedChats.map(async (chat, index) => {
+                if (index < 20) { // Límite para performance
+                    try {
+                        let picUrl = null;
+                        // ... (código comentado)
+                        // chat.profilePicUrl = picUrl || null;
+                    } catch (err) {
+                        // console.error(...)
+                    }
+                }
+            }));
+            console.log('[DEBUG] Finished hydration.'); */
+
+            return formattedChats;
+        } catch (e) {
+            console.error('Error fetching chats:', e);
+            return [];
+        }
+    }
+
+    async getFormattedLabels(userId) {
+        // Paleta oficial de colores de etiquetas de WhatsApp Web
+        const LabelColorPalette = [
+            '#ff9485', '#64c4ff', '#ffd429', '#dfaef0', '#99b6c1',
+            '#55ccb3', '#ff9dff', '#d3a91d', '#6d7cce', '#d7e752',
+            '#00d0e2', '#ffc5c7', '#93ceac', '#f74848', '#00a0f2',
+            '#83e422', '#ffaf04', '#b5ebff', '#9ba6ff', '#9368cf'
+        ];
+
+        const client = this.clients.get(userId);
+        if (!client) return [];
+
+        try {
+            const labels = await client.getLabels();
+            if (!Array.isArray(labels)) return [];
+
+            return await Promise.all(labels.map(async l => {
+                let color = '#cccccc'; // Default
+                try {
+                    // Prioridad 1: HexColor directo si existe y es válido
+                    if (l.hexColor && l.hexColor.startsWith('#')) {
+                        color = l.hexColor;
+                    }
+                    // Prioridad 2: Color como índice numérico
+                    else if (typeof l.color === 'number') {
+                        const index = l.color % LabelColorPalette.length;
+                        color = LabelColorPalette[index];
+                    }
+                    // Prioridad 3: ID numérico como semilla
+                    else if (l.id) {
+                        const numericId = parseInt(l.id.replace(/\D/g, '')) || 0;
+                        color = LabelColorPalette[numericId % LabelColorPalette.length];
+                    }
+                } catch (err) {
+                    console.error('Error calculating label color:', l, err);
+                }
+
+                // Obtener conteo real de chats usando el método de la etiqueta
+                let count = 0;
+                try {
+                    const labelChats = await l.getChats();
+                    count = labelChats.length;
+                } catch (err) {
+                    // Fail silently
+                }
+
+                return {
+                    id: l.id,
+                    name: l.name,
+                    color: color,
+                    count: count
+                };
+            }));
+        } catch (e) {
+            console.error('Error fetching labels:', e);
+            return [];
+        }
+    }
+
+    async logout(userId) {
+        const client = this.clients.get(userId);
+        if (client) {
+            try {
+                console.log(`Logging out client ${userId}...`);
+                await client.logout();
+                this.clients.delete(userId);
+                setTimeout(() => this.initializeClient(userId), 1000);
+            } catch (e) {
+                console.error('Error logging out:', e);
+                this.clients.delete(userId);
+                this.initializeClient(userId);
+            }
+        } else {
+            this.initializeClient(userId);
+        }
+    }
+    async updateChatLabels(userId, chatId, labelIds, action = 'add') {
+        const client = this.clients.get(userId);
+        if (!client) throw new Error('Client not initialized');
+
+        // Formato seguro de Chat ID
+        const targetChatId = chatId.includes('@') ? chatId : `${chatId.replace(/\D/g, '')}@c.us`;
+
+        // labelIds debe ser un array
+        const labelsToProcess = Array.isArray(labelIds) ? labelIds : [labelIds];
+
+        try {
+            // ESTRATEGIA: Inyección Puppeteer (Directo al Store de WhatsApp)
+            // Esto es lo más robusto porque se salta la abstracción de la librería.
+            await client.pupPage.evaluate(async (chatId, labelIds, action) => {
+                const chatModel = window.Store.Chat.get(chatId);
+                const labelModels = labelIds.map(id => window.Store.Label.get(id)).filter(Boolean);
+
+                if (!chatModel) return;
+
+                if (window.Store.Label && window.Store.Label.addOrRemoveLabels) {
+                    // Método estándar en versiones recientes
+                    // addOrRemoveLabels agrega si no está, quita si está.
+                    // Para ser precisos, calculamos la diferencia nosotros mismos o usamos add/remove específicos si existen.
+
+                    // Como addOrRemoveLabels es toggle, necesitamos saber el estado actual
+                    // Mejor usamos la estrategia de guardar el set completo (saveLabels)
+
+                    const currentLabels = chatModel.labels || [];
+                    let newLabels = new Set(currentLabels);
+
+                    labelIds.forEach(id => {
+                        if (action === 'add') newLabels.add(id);
+                        else newLabels.delete(id);
+                    });
+
+                    // Si existe el comando para guardar etiquetas (más común en wwebjs internals)
+                    if (window.Store.Cmd && window.Store.Cmd.saveLabels) {
+                        await window.Store.Cmd.saveLabels(chatId, Array.from(newLabels));
+                    } else {
+                        // Fallback a addOrRemoveLabels intentando ser inteligente
+                        // Solo pasamos los que realmente necesitan cambiar
+                        const toToggle = labelModels.filter(l => {
+                            const hasLabel = newLabels.has(l.id);
+                            const shouldHave = action === 'add';
+                            // Si lo tiene y lo queremos agregar -> no hacer nada
+                            // Si no lo tiene y lo queremos agregar -> toggle
+                            // Si lo tiene y lo queremos quitar -> toggle
+                            // Si no lo tiene y lo queremos quitar -> no hacer nada
+                            return (currentLabels.includes(l.id) !== shouldHave);
+                        });
+
+                        if (toToggle.length > 0) {
+                            await window.Store.Label.addOrRemoveLabels(toToggle, [chatModel]);
+                        }
+                    }
+                }
+            }, targetChatId, labelsToProcess, action);
+
+            // Retornar etiquetas actualizadas (simulado)
+            // Damos un pequeño respiro para que WA actualice la UI interna
+            await new Promise(r => setTimeout(r, 200));
+
+            const chat = await client.getChatById(targetChatId);
+            return await chat.getLabels();
+
+        } catch (pupError) {
+            console.error('[Labels] Puppeteer strategy failed:', pupError);
+
+            // Fallback a métodos legacy del objeto Chat (puede que funcionen en esta versión especifica)
+            try {
+                const chat = await client.getChatById(targetChatId);
+                if (action === 'add') await chat.addLabels(labelsToProcess);
+                else await chat.removeLabels(labelsToProcess);
+                return await chat.getLabels();
+            } catch (legacyError) {
+                console.error('[Labels] ALL strategies failed.', legacyError);
+                throw new Error('Failed to update labels via any method');
+            }
+        }
+    }
+}
+
+export const whatsappService = new WhatsAppService();
