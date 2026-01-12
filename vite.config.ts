@@ -21,6 +21,11 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
+    preview: {
+      host: '0.0.0.0',
+      port: 3002,
+      allowedHosts: ['mate.losgurises.com.uy', 'n8n.losgurises.com.uy', 'localhost']
+    },
     plugins: [react()],
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
