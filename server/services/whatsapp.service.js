@@ -428,6 +428,10 @@ class WhatsAppService {
             await new Promise(r => setTimeout(r, 200));
 
             const chat = await client.getChatById(targetChatId);
+            if (!chat) {
+                console.warn(`[Labels] Chat not found for ${targetChatId} after update. Returning empty.`);
+                return [];
+            }
             return await chat.getLabels();
 
         } catch (pupError) {

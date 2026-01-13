@@ -14,7 +14,7 @@ router.post('/labels/assign', labelsController.assignLabel);
 router.post('/labels/remove', labelsController.removeLabel);
 
 // Messages
-router.post('/messages/send', messageController.sendMessage);
+router.post('/send-message', messageController.sendMessage);
 
 
 export default router;
