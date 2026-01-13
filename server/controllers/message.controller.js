@@ -28,14 +28,32 @@ export const sendMessage = async (req, res) => {
             formattedPhone = targetPhone.replace(/\D/g, '') + '@c.us';
         }
 
+        // Check if chat exists before sending
+        let chat;
+        try {
+            chat = await client.getChatById(formattedPhone);
+        } catch (e) {
+            console.warn(`[API] Check chat failed for ${formattedPhone}:`, e.message);
+        }
+
+        if (!chat) {
+            // Attempt to send blindly if checks fail (legacy behavior), but log it
+            console.warn(`[API] Chat object not found for ${formattedPhone}. Trying client.sendMessage directly.`);
+            // NOTE: If this fails with 'getChat' error, it means the number is invalid or not registered.
+        }
+
         let response;
         if (mediaUrl) {
-            // TODO: Implementar envío de medios por URL (requires whatsapp-web.js MessageMedia.fromUrl)
-            // Por ahora, mensaje de texto con link
             const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
             response = await client.sendMessage(formattedPhone, textToSend);
         } else {
-            response = await client.sendMessage(formattedPhone, targetMessage);
+            console.log(`[API] Sending text to ${formattedPhone}`);
+            // Prefer chat.sendMessage if chat object exists (more stable)
+            if (chat) {
+                response = await chat.sendMessage(targetMessage);
+            } else {
+                response = await client.sendMessage(formattedPhone, targetMessage);
+            }
         }
 
         return res.json({
