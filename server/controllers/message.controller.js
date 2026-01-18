@@ -2,6 +2,53 @@ import { whatsappService } from '../services/whatsapp.service.js';
 import pkg from 'whatsapp-web.js';
 const { MessageMedia } = pkg;
 import { logApi } from '../services/logger.service.js';
+import ffmpeg from 'fluent-ffmpeg';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { v4 as uuidv4 } from 'uuid';
+
+// Helper to convert audio to WA-compatible OGG/Opus
+const convertToOpus = async (base64Data) => {
+    return new Promise((resolve, reject) => {
+        const tempDir = os.tmpdir();
+        const inputPath = path.join(tempDir, `input_${uuidv4()}.mp3`); // Assume input is likely mp3/wav
+        const outputPath = path.join(tempDir, `output_${uuidv4()}.ogg`);
+
+        try {
+            // Write input file
+            fs.writeFileSync(inputPath, Buffer.from(base64Data, 'base64'));
+
+            ffmpeg(inputPath)
+                .audioCodec('libopus')
+                .audioBitrate('64k')
+                .audioChannels(1) // Mono is crucial for WhatsApp PTT
+                .format('ogg')
+                .on('end', () => {
+                    const convertedBase64 = fs.readFileSync(outputPath).toString('base64');
+                    // Cleanup
+                    try {
+                        fs.unlinkSync(inputPath);
+                        fs.unlinkSync(outputPath);
+                    } catch (cleanupErr) {
+                        console.error('Conversion cleanup failed', cleanupErr);
+                    }
+                    resolve(convertedBase64);
+                })
+                .on('error', (err) => {
+                    console.error('FFmpeg conversion error:', err);
+                    // Try to cleanup
+                    if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+                    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+                    reject(err);
+                })
+                .save(outputPath);
+
+        } catch (e) {
+            reject(e);
+        }
+    });
+};
 
 export const sendMessage = async (req, res) => {
     try {
@@ -84,22 +131,26 @@ export const sendMessage = async (req, res) => {
                     // Remove common data URI prefixes if present
                     base64 = base64.replace(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/, '');
 
-                    const finalMime = mimetype || 'image/jpeg';
-                    console.log(`[API - BG] Processing MEDIA. Mime: ${finalMime}, Length: ${base64.length}`);
-
-                    const media = new MessageMedia(finalMime, base64, filename);
-
-                    console.log(`[API - BG] Sending MEDIA to ${formattedPhone}`);
-
-                    const options = {};
-                    if (req.body.caption) options.caption = req.body.caption;
-                    if (targetMessage) options.caption = targetMessage; // Priority to direct message param
+                    let finalMime = mimetype || 'image/jpeg';
 
                     // Auto-detect voice note intent
                     if (finalMime.startsWith('audio/')) {
-                        options.sendAudioAsVoice = true; // Try to send as PTT
-                        logApi('[Background] Detected Audio: Attempting to send as Voice Note');
+                        options.sendAudioAsVoice = true;
+                        logApi('[Background] Detected Audio: Converting to Opus/OGG for Mobile Compatibility...');
+                        try {
+                            base64 = await convertToOpus(base64);
+                            finalMime = 'audio/ogg; codecs=opus';
+                            logApi('[Background] Audio Conversion Successful');
+                        } catch (conversionError) {
+                            console.error('Audio conversion failed, sending original:', conversionError);
+                            logApi('[Background] Audio Conversion Failed', conversionError);
+                            // Fallback to original, might fail on mobile but better than crashing
+                        }
                     }
+
+                    console.log(`[API - BG] Processing MEDIA. Mime: ${finalMime}, Length: ${base64.length}`);
+
+                    const media = new MessageMedia(finalMime, base64, filename);
 
                     try {
                         // DISABLED: 'Mark as read' feature causes crash in current Library version
