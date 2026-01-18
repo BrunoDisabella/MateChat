@@ -97,6 +97,10 @@ function App() {
         const newSocket = io(connectionUrl, {
             transports: ['websocket', 'polling'],
             reconnectionAttempts: 10,
+            auth: {
+                userId: user.id,
+                token: session.access_token
+            }
         });
 
         newSocket.on('connect', () => {

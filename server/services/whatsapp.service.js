@@ -2,6 +2,7 @@ import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import axios from 'axios';
 import { config } from '../config/index.js';
+import { settingsService } from './settings.service.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -9,6 +10,7 @@ class WhatsAppService {
     constructor() {
         this.clients = new Map();
         this.eventHandlers = new Map(); // Para comunicar eventos al SocketService sin dependencia circular directa
+        settingsService.initialize(); // Asegurar inicialización de servicio de settings
     }
 
     on(event, callback) {
@@ -25,7 +27,9 @@ class WhatsAppService {
         }
     }
 
-    initializeClient(userId = 'default-user') {
+    initializeClient(userId) {
+        if (!userId) throw new Error('UserId is required for initialization');
+
         if (this.clients.has(userId)) {
             console.log(`Client ${userId} already initialized`);
             return this.clients.get(userId);
@@ -50,62 +54,58 @@ class WhatsAppService {
 
     setupClientListeners(client, userId) {
         client.on('qr', (qr) => {
-            console.log('QR RECEIVED');
+            console.log(`QR RECEIVED for ${userId}`);
             this.emit('qr', { qr, userId });
         });
 
         client.on('ready', () => {
-            console.log('WhatsApp Client is ready!');
+            console.log(`WhatsApp Client ${userId} is ready!`);
             this.emit('ready', { userId });
         });
 
         client.on('authenticated', () => {
-            console.log('WhatsApp Client authenticated');
+            console.log(`WhatsApp Client ${userId} authenticated`);
             this.emit('authenticated', { userId });
         });
 
         client.on('auth_failure', (msg) => {
-            console.error('AUTHENTICATION FAILURE', msg);
+            console.error(`AUTHENTICATION FAILURE for ${userId}`, msg);
             this.emit('auth_failure', { msg, userId });
         });
 
         client.on('message', async (msg) => {
-            console.log('MESSAGE RECEIVED:', msg.body);
-            this.handleWebhook(msg, 'message'); // 'message' = received
+            console.log(`MESSAGE RECEIVED for ${userId}:`, msg.body);
+            this.handleWebhook(userId, msg, 'message'); // 'message' = received
             this.emit('message', { msg, userId });
         });
 
         // NEW: Trigger for SENT messages
         client.on('message_create', async (msg) => {
-            console.log(`[DEBUG] message_create observed. fromMe: ${msg.fromMe} | ${msg.body.substring(0, 20)}...`);
             if (msg.fromMe) {
-                console.log('MESSAGE SENT (Self): Triggering Webhook...');
-                this.handleWebhook(msg, 'message_create'); // 'message_create' includes sent
+                // console.log(`MESSAGE SENT (Self) for ${userId}: Triggering Webhook...`);
+                this.handleWebhook(userId, msg, 'message_create'); // 'message_create' includes sent
             }
         });
 
         client.on('disconnected', (reason) => {
-            console.log('Client was logged out', reason);
+            console.log(`Client ${userId} was logged out`, reason);
             this.emit('disconnected', { reason, userId });
             this.clients.delete(userId);
         });
     }
 
-    async handleWebhook(msg, eventType = 'message') {
+    async handleWebhook(userId, msg, eventType = 'message') {
         try {
-            const webhooksPath = path.resolve(process.cwd(), 'server', 'data', 'webhooks.json');
-            if (!fs.existsSync(webhooksPath)) return;
+            // Recuperar configuración de usuario desde Supabase
+            const settings = await settingsService.getUserSettings(userId);
+            let webhooks = settings?.webhooks || [];
 
-            const webhooksData = fs.readFileSync(webhooksPath, 'utf8');
-            let webhooks = [];
-            try { webhooks = JSON.parse(webhooksData || '[]'); } catch (e) { }
-
+            // Add global n8n webhook if configured
             if (config.n8nWebhookUrl) {
                 webhooks.push({ url: config.n8nWebhookUrl, events: ['message', 'message_create'] });
             }
 
             if (!webhooks.length) {
-                console.log('[Webhook] No webhooks configured.');
                 return;
             }
 

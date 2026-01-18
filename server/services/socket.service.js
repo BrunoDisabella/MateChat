@@ -1,15 +1,14 @@
 
 import { Server as SocketIo } from 'socket.io';
 import { whatsappService } from './whatsapp.service.js';
+import { settingsService } from './settings.service.js';
 import { config } from '../config/index.js';
-import fs from 'fs';
-import path from 'path';
 
 class SocketService {
     constructor() {
         this.io = null;
-        this.currentQr = null;
-        this.clientState = 'DISCONNECTED';
+        // Almacenar estado por usuario: { [userId]: { state: 'DISCONNECTED', qr: null } }
+        this.userStates = new Map();
     }
 
     initialize(server) {
@@ -22,210 +21,185 @@ class SocketService {
             pingInterval: 25000
         });
 
+        // Middleware de autenticación
+        this.io.use((socket, next) => {
+            const userId = socket.handshake.auth.userId;
+            if (!userId) {
+                return next(new Error("authentication error: userId required"));
+            }
+            socket.userId = userId;
+            next();
+        });
+
         this.setupWhatsappListeners();
 
-        this.io.on('connection', (socket) => {
-            console.log(`New Socket connection: ${socket.id} | State: ${this.clientState}`);
+        this.io.on('connection', async (socket) => {
+            const userId = socket.userId;
+            console.log(`Socket connected: ${socket.id} for User: ${userId}`);
+
+            // Unir a sala privada del usuario
+            socket.join(`user:${userId}`);
+
+            // Inicializar estado si no existe
+            if (!this.userStates.has(userId)) {
+                this.userStates.set(userId, { state: 'DISCONNECTED', qr: null });
+            }
+
+            // Inicializar cliente de WhatsApp para este usuario si no existe
+            // Esto asegura que el proceso se inicie al conectar el frontend
+            try {
+                whatsappService.initializeClient(userId);
+            } catch (e) {
+                console.error(`Error initializing WA client for ${userId}:`, e);
+            }
 
             // Enviar estado actual
-            this.sendState(socket);
+            this.sendState(socket, userId);
 
             socket.on('client-ready', () => {
-                console.log('Client UI ready signal received.');
-                this.sendState(socket);
+                console.log(`Client UI ready signal received for ${userId}`);
+                this.sendState(socket, userId);
             });
 
-            // --- FIX LOGOUT ---
             socket.on('logout', async () => {
-                console.log('Logout requested from UI');
-                await whatsappService.logout('default-user');
-                // El servicio de whatsapp emitirá 'disconnected', actualizando el estado aquí
+                console.log(`Logout requested for ${userId}`);
+                await whatsappService.logout(userId);
+                this.updateUserState(userId, { state: 'DISCONNECTED', qr: null });
             });
 
-            // Reenviar eventos de socket al servicio si fuera necesario (ej: enviar mensaje desde UI)
             socket.on('send-message', async (data) => {
-                console.log('[Socket] Received send-message request:', data);
                 const { chatId, content } = data;
                 if (!chatId || !content) return;
 
                 try {
-                    const client = whatsappService.getClient('default-user');
+                    const client = whatsappService.getClient(userId);
                     if (client) {
                         await client.sendMessage(chatId, content);
-                        console.log(`[Socket] Message sent to ${chatId}`);
                     } else {
-                        console.error('[Socket] Client not ready for send-message');
+                        console.error(`[Socket] Client not ready for ${userId}`);
                     }
                 } catch (e) {
-                    console.error('[Socket] Error sending message:', e);
+                    console.error(`[Socket] Error sending message for ${userId}:`, e);
                 }
             });
 
             // --- SETTINGS (API & WEBHOOKS) ---
-            socket.on('get-settings', () => {
-                const dataDir = path.resolve(process.cwd(), 'server', 'data');
-                const webhooksPath = path.join(dataDir, 'webhooks.json');
-
-                console.log(`[Settings] Loading webhooks from: ${webhooksPath}`);
-
-                let webhooks = [];
-                if (fs.existsSync(webhooksPath)) {
-                    try {
-                        const content = fs.readFileSync(webhooksPath, 'utf8');
-                        webhooks = JSON.parse(content);
-                        console.log(`[Settings] Loaded ${webhooks.length} webhooks:`, JSON.stringify(webhooks));
-                    } catch (e) {
-                        console.error('[Settings] Error reading webhooks:', e);
-                    }
-                } else {
-                    console.log('[Settings] webhooks.json does not exist yet');
-                }
+            socket.on('get-settings', async () => {
+                console.log(`[Socket] Fetching settings for ${userId}`);
+                const settings = await settingsService.getUserSettings(userId);
 
                 socket.emit('settings-data', {
-                    apiKey: process.env.API_KEY || 'matechat-secret-local',
-                    webhooks: webhooks
+                    apiKey: settings?.api_key || '',
+                    webhooks: settings?.webhooks || []
                 });
             });
 
-            socket.on('update-api-key', ({ apiKey }) => {
-                console.log('[Settings] Updating API Key');
-                process.env.API_KEY = apiKey;
+            socket.on('update-api-key', async ({ apiKey }) => {
+                // NOTA: En multi-tenant, la API key se genera, no se edita libremente usualmente.
+                // Pero si permitimos editarla o regenerarla:
+                // Aquí asumimos que el usuario quiere guardar/rotar su key.
+                // Por compatibilidad con el frontend actual, si envía una key y queremos guardarla:
+                // TODO: Implement import API Key logic if needed, but safer to rotate or readonly.
+                // For now, let's treat it as readonly or auto-generated logic in backend.
+                // If existing frontend UI allows editing, we might need a distinct method.
 
-                try {
-                    const envPath = path.resolve(process.cwd(), '.env');
-                    let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+                // Si el frontend envía 'update-api-key', tal vez deberíamos solo confirmar o ignorar
+                // ya que la key viene de la DB.
+                // O permitir "rotar" key.
 
-                    const apiKeyRegex = /^API_KEY=.*$/m;
-                    if (apiKeyRegex.test(envContent)) {
-                        envContent = envContent.replace(apiKeyRegex, `API_KEY=${apiKey}`);
-                    } else {
-                        envContent += `\nAPI_KEY=${apiKey}`;
-                    }
+                // Mantenemos lógica simple: no actualizamos API key manualmente por ahora desde UI
+                // o añadimos 'rotate-api-key'.
 
-                    fs.writeFileSync(envPath, envContent.trim() + '\n');
-                    socket.emit('settings-updated', { success: true });
-
-                    // Broadcast update to all clients
-                    this.io.emit('settings-data', {
-                        apiKey,
-                        webhooks: this.getWebhooks()
-                    });
-
-                } catch (error) {
-                    console.error('[Settings] Error saving API Key:', error);
-                    socket.emit('settings-updated', { success: false, error: 'Failed to save API Key' });
-                }
+                // Si el frontend espera confirmación:
+                socket.emit('settings-updated', { success: true, message: "API Key managed by server" });
             });
 
-            socket.on('save-webhooks', (webhooks) => {
-                console.log(`[Settings] Saving ${webhooks.length} webhooks:`, JSON.stringify(webhooks));
-                try {
-                    const dataDir = path.resolve(process.cwd(), 'server', 'data');
-                    const webhooksPath = path.join(dataDir, 'webhooks.json');
+            socket.on('save-webhooks', async (webhooks) => {
+                console.log(`[Settings] Saving webhooks for ${userId}`);
+                const success = await settingsService.saveWebhooks(userId, webhooks);
 
-                    console.log(`[Settings] Saving to path: ${webhooksPath}`);
-
-                    // Crear directorio si no existe
-                    if (!fs.existsSync(dataDir)) {
-                        fs.mkdirSync(dataDir, { recursive: true });
-                        console.log(`[Settings] Created directory: ${dataDir}`);
-                    }
-
-                    fs.writeFileSync(webhooksPath, JSON.stringify(webhooks, null, 2));
-
-                    // Verificar que se guardó correctamente
-                    const saved = fs.readFileSync(webhooksPath, 'utf8');
-                    console.log(`[Settings] Verified saved content: ${saved}`);
-
+                if (success) {
                     socket.emit('settings-updated', { success: true });
-
-                    this.io.emit('settings-data', {
-                        apiKey: process.env.API_KEY || 'matechat-secret-local',
-                        webhooks: webhooks
+                    // Broadcast to user's other tabs
+                    const settings = await settingsService.getUserSettings(userId);
+                    this.io.to(`user:${userId}`).emit('settings-data', {
+                        apiKey: settings?.api_key,
+                        webhooks: settings?.webhooks
                     });
-                } catch (error) {
-                    console.error('[Settings] Error saving webhooks:', error);
+                } else {
                     socket.emit('settings-updated', { success: false, error: 'Failed to save webhooks' });
                 }
             });
 
-
-            // GET HISTORIAL (Legacy)
+            // GET HISTORIAL
             socket.on('fetch-messages', async ({ chatId, limit = 50, before = null }, callback) => {
-                console.log(`[Socket] Fetching messages for ${chatId} (Limit: ${limit}, Before: ${before})`);
-                const messages = await whatsappService.getChatMessages('default-user', chatId, { limit, before });
+                const messages = await whatsappService.getChatMessages(userId, chatId, { limit, before });
                 if (callback) callback(messages);
             });
         });
     }
 
-    async sendState(socket) {
-        if (this.clientState === 'QR_SENT' && this.currentQr) {
-            socket.emit('qr', { qr: this.currentQr });
-        } else if (this.clientState === 'AUTHENTICATED' || this.clientState === 'READY') {
-            socket.emit(this.clientState.toLowerCase(), { userId: 'default-user' });
+    updateUserState(userId, update) {
+        const current = this.userStates.get(userId) || { state: 'DISCONNECTED', qr: null };
+        this.userStates.set(userId, { ...current, ...update });
+    }
 
-            // Si ya estamos listos, enviar datos al socket recién conectado
-            if (this.clientState === 'READY') {
-                this.refreshDataForSocket(socket);
+    async sendState(socket, userId) {
+        const state = this.userStates.get(userId) || { state: 'DISCONNECTED', qr: null };
+
+        if (state.state === 'QR_SENT' && state.qr) {
+            socket.emit('qr', { qr: state.qr });
+        } else if (state.state === 'AUTHENTICATED' || state.state === 'READY') {
+            socket.emit(state.state.toLowerCase(), { userId });
+
+            if (state.state === 'READY') {
+                this.refreshDataForSocket(socket, userId);
             }
+        } else {
+            socket.emit('disconnected', { userId });
         }
     }
 
-    async refreshDataForSocket(socket) {
-        console.log('Refreshing data for socket:', socket.id);
-        const chats = await whatsappService.getFormattedChats('default-user');
-        const labels = await whatsappService.getFormattedLabels('default-user');
+    async refreshDataForSocket(socket, userId) {
+        // console.log(`Refreshing data for ${userId}`);
+        const chats = await whatsappService.getFormattedChats(userId);
+        const labels = await whatsappService.getFormattedLabels(userId);
 
         socket.emit('chat-update', chats);
         socket.emit('labels-update', labels);
     }
 
     setupWhatsappListeners() {
-        whatsappService.on('qr', ({ qr }) => {
-            this.currentQr = qr;
-            this.clientState = 'QR_SENT';
-            this.io.emit('qr', { qr });
+        whatsappService.on('qr', ({ qr, userId }) => {
+            this.updateUserState(userId, { state: 'QR_SENT', qr });
+            this.io.to(`user:${userId}`).emit('qr', { qr });
         });
 
-        whatsappService.on('ready', async () => {
-            this.currentQr = null;
-            this.clientState = 'READY';
-            this.io.emit('ready', { userId: 'default-user' });
+        whatsappService.on('ready', async ({ userId }) => {
+            this.updateUserState(userId, { state: 'READY', qr: null });
+            this.io.to(`user:${userId}`).emit('ready', { userId });
 
-            // Broadcast initial data to all
-            console.log('Fetching initial data for broadcast...');
-            const chats = await whatsappService.getFormattedChats('default-user');
-            const labels = await whatsappService.getFormattedLabels('default-user');
-            this.io.emit('chat-update', chats);
-            this.io.emit('labels-update', labels);
+            const chats = await whatsappService.getFormattedChats(userId);
+            const labels = await whatsappService.getFormattedLabels(userId);
+            this.io.to(`user:${userId}`).emit('chat-update', chats);
+            this.io.to(`user:${userId}`).emit('labels-update', labels);
         });
 
-        whatsappService.on('authenticated', () => {
-            this.currentQr = null;
-            this.clientState = 'AUTHENTICATED';
-            this.io.emit('authenticated', { userId: 'default-user' });
+        whatsappService.on('authenticated', ({ userId }) => {
+            this.updateUserState(userId, { state: 'AUTHENTICATED', qr: null });
+            this.io.to(`user:${userId}`).emit('authenticated', { userId });
         });
 
-        whatsappService.on('disconnected', () => {
-            this.currentQr = null;
-            this.clientState = 'DISCONNECTED';
-            this.io.emit('disconnected', { userId: 'default-user' });
+        whatsappService.on('disconnected', ({ userId }) => {
+            this.updateUserState(userId, { state: 'DISCONNECTED', qr: null });
+            this.io.to(`user:${userId}`).emit('disconnected', { userId });
         });
 
-        whatsappService.on('status_change', ({ status }) => {
-            // Manejar estados intermedios si es necesario
+        // Forward labels update specifically
+        whatsappService.on('labels_update', async ({ userId }) => {
+            const labels = await whatsappService.getFormattedLabels(userId);
+            this.io.to(`user:${userId}`).emit('labels-update', labels);
         });
-    }
-
-    getWebhooks() {
-        const webhooksPath = path.resolve(process.cwd(), 'server', 'data', 'webhooks.json');
-        if (fs.existsSync(webhooksPath)) {
-            try {
-                return JSON.parse(fs.readFileSync(webhooksPath, 'utf8'));
-            } catch (e) { return []; }
-        }
-        return [];
     }
 }
 
