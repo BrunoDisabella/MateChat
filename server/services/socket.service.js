@@ -95,23 +95,25 @@ class SocketService {
             });
 
             socket.on('update-api-key', async ({ apiKey }) => {
-                // NOTA: En multi-tenant, la API key se genera, no se edita libremente usualmente.
-                // Pero si permitimos editarla o regenerarla:
-                // Aquí asumimos que el usuario quiere guardar/rotar su key.
-                // Por compatibilidad con el frontend actual, si envía una key y queremos guardarla:
-                // TODO: Implement import API Key logic if needed, but safer to rotate or readonly.
-                // For now, let's treat it as readonly or auto-generated logic in backend.
-                // If existing frontend UI allows editing, we might need a distinct method.
+                console.log(`[Settings] User ${userId} is updating API Key manually`);
 
-                // Si el frontend envía 'update-api-key', tal vez deberíamos solo confirmar o ignorar
-                // ya que la key viene de la DB.
-                // O permitir "rotar" key.
+                if (!apiKey || apiKey.trim().length < 5) {
+                    socket.emit('settings-updated', { success: false, error: "API Key too short" });
+                    return;
+                }
 
-                // Mantenemos lógica simple: no actualizamos API key manualmente por ahora desde UI
-                // o añadimos 'rotate-api-key'.
+                const success = await settingsService.updateApiKey(userId, apiKey);
 
-                // Si el frontend espera confirmación:
-                socket.emit('settings-updated', { success: true, message: "API Key managed by server" });
+                if (success) {
+                    socket.emit('settings-updated', { success: true });
+                    // Broadcast to other tabs
+                    this.io.to(`user:${userId}`).emit('settings-data', {
+                        apiKey: apiKey,
+                        webhooks: (await settingsService.getUserSettings(userId))?.webhooks || []
+                    });
+                } else {
+                    socket.emit('settings-updated', { success: false, error: "Failed to update API Key" });
+                }
             });
 
             socket.on('save-webhooks', async (webhooks) => {

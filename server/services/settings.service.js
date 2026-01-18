@@ -122,22 +122,31 @@ class SettingsService {
     }
 
     /**
+     * Actualiza la API Key con un valor personalizado
+     */
+    async updateApiKey(userId, newApiKey) {
+        if (!this.initialized) return false;
+
+        const { error } = await this.supabase
+            .from('user_settings')
+            .update({ api_key: newApiKey, updated_at: new Date() })
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error('[Settings] Error updating API key:', error);
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Genera una nueva API Key para el usuario
      */
     async rotateApiKey(userId) {
         if (!this.initialized) return null;
 
         const newKey = uuidv4();
-        const { error } = await this.supabase
-            .from('user_settings')
-            .update({ api_key: newKey, updated_at: new Date() })
-            .eq('user_id', userId);
-
-        if (error) {
-            console.error('[Settings] Error rotating API key:', error);
-            return null;
-        }
-        return newKey;
+        return await this.updateApiKey(userId, newKey) ? newKey : null;
     }
 }
 
