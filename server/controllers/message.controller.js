@@ -34,6 +34,11 @@ export const sendMessage = async (req, res) => {
             formattedPhone = targetPhone.replace(/\D/g, '') + '@c.us';
         }
 
+        logApi(`Queueing message for ${formattedPhone}.`, {
+            hasMedia: !!(req.body.media || mediaUrl),
+            textLength: targetMessage?.length
+        });
+
         // Respond IMMEDIATELY to prevent timeout
         res.json({
             success: true,
@@ -47,17 +52,18 @@ export const sendMessage = async (req, res) => {
         // ---------------------------------------------------------
         (async () => {
             try {
+                logApi(`[Background] Starting process for ${formattedPhone}`);
+
                 // Check if chat exists before sending
                 let chat;
                 try {
                     chat = await client.getChatById(formattedPhone);
                 } catch (e) {
-                    console.warn(`[API - BG] Check chat failed for ${formattedPhone}:`, e.message);
+                    logApi(`[Background] Check chat failed for ${formattedPhone}`, e);
                 }
 
                 if (!chat) {
-                    // Attempt to send blindly if checks fail (legacy behavior), but log it
-                    console.warn(`[API - BG] Chat object not found for ${formattedPhone}. Trying client.sendMessage directly.`);
+                    logApi(`[Background] Chat not found for ${formattedPhone}. Attempting direct send.`);
                 }
 
                 if (req.body.media && req.body.media.base64) {
@@ -67,6 +73,13 @@ export const sendMessage = async (req, res) => {
                     if (typeof base64 !== 'string') {
                         throw new Error('Media base64 must be a string');
                     }
+
+                    // Log raw base64 start to check format
+                    logApi(`[Background] Processing Base64 media. Mime: ${mimetype}`, {
+                        base64Preview: base64.substring(0, 50) + '...',
+                        totalLength: base64.length
+                    });
+
                     // Remove common data URI prefixes if present
                     base64 = base64.replace(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/, '');
 
@@ -84,17 +97,21 @@ export const sendMessage = async (req, res) => {
                     // Auto-detect voice note intent
                     if (finalMime.startsWith('audio/')) {
                         options.sendAudioAsVoice = true; // Try to send as PTT
-                        console.log('[API - BG] Detected Audio: Sending as Voice Note');
+                        logApi('[Background] Detected Audio: Attempting to send as Voice Note');
                     }
 
                     try {
                         await client.sendMessage(formattedPhone, media, options);
+                        logApi(`[Background] MEDIA Sent Successfully to ${formattedPhone}`);
                     } catch (sendError) {
+                        logApi(`[Background] Primary Send Failed`, sendError);
+
                         // Fallback: Try sending without voice note flag if it failed (maybe ffmpeg missing)
                         if (options.sendAudioAsVoice) {
-                            console.warn('[API - BG] Voice Note failed (likely ffmpeg missing). Retrying as document...');
+                            logApi('[Background] Retrying voice note as document...');
                             delete options.sendAudioAsVoice;
                             await client.sendMessage(formattedPhone, media, options);
+                            logApi(`[Background] Fallback MEDIA Sent Successfully`);
                         } else {
                             throw sendError;
                         }
@@ -103,6 +120,7 @@ export const sendMessage = async (req, res) => {
                     // Legacy mediaUrl (URL text message)
                     const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
                     await client.sendMessage(formattedPhone, textToSend);
+                    logApi(`[Background] URL Message Sent to ${formattedPhone}`);
                 } else {
                     console.log(`[API - BG] Sending text to ${formattedPhone}`);
                     // Prefer chat.sendMessage if chat object exists (more stable)
@@ -111,19 +129,20 @@ export const sendMessage = async (req, res) => {
                     } else {
                         await client.sendMessage(formattedPhone, targetMessage);
                     }
+                    logApi(`[Background] Text Message Sent to ${formattedPhone}`);
                 }
-                console.log(`[API - BG] Message sent successfully to ${formattedPhone}`);
             } catch (bgError) {
                 console.error(`[API - BG] FAILED to send message to ${formattedPhone}:`, bgError);
+                logApi(`[Background] FATAL ERROR sending to ${formattedPhone}`, bgError);
             }
         })();
 
     } catch (error) {
         console.error('API Send Message Error:', error);
+        logApi('API Controller Error', error);
         // Only valid if response hasn't been sent yet (though we send it early now)
         if (!res.headersSent) {
             return res.status(500).json({ error: error.message });
         }
     }
 };
-
