@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Save, Key, Globe, Eye, EyeOff, Copy, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { X, Save, Key, Globe, Eye, EyeOff, Copy, Plus, Trash2, CheckCircle2, LogOut, Loader2 } from 'lucide-react';
 import { Socket } from 'socket.io-client';
 import { toast } from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
@@ -23,6 +23,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
     const [showApiKey, setShowApiKey] = useState(false);
     const [webhooks, setWebhooks] = useState<Webhook[]>([]);
     const [loading, setLoading] = useState(false);
+    const [disconnecting, setDisconnecting] = useState(false);
 
     useEffect(() => {
         if (isOpen && socket) {
@@ -116,6 +117,23 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
         toast.success('Copiado');
     };
 
+    const handleDisconnectWhatsApp = () => {
+        if (!socket) return;
+        if (!window.confirm('¿Estás seguro? Esto cerrará la sesión de WhatsApp y tendrás que escanear un nuevo código QR.')) {
+            return;
+        }
+
+        setDisconnecting(true);
+        socket.emit('logout');
+        toast.success('Desconectando WhatsApp...');
+
+        // Cerrar el modal después de un momento
+        setTimeout(() => {
+            setDisconnecting(false);
+            onClose();
+        }, 2000);
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -199,6 +217,24 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
                                     {(loading && activeTab === 'api') ? <span className="animate-spin">⏳</span> : <Save className="w-4 h-4" />}
                                     Guardar API Key
                                 </button>
+                            </div>
+
+                            {/* Zona de peligro */}
+                            <div className="mt-8 pt-6 border-t border-red-100">
+                                <h3 className="text-sm font-medium text-red-600 mb-3">Zona de peligro</h3>
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                    <p className="text-xs text-red-600 mb-3">
+                                        Esto cerrará la sesión de WhatsApp y tendrás que escanear un nuevo código QR.
+                                    </p>
+                                    <button
+                                        onClick={handleDisconnectWhatsApp}
+                                        disabled={disconnecting}
+                                        className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg shadow-sm flex items-center gap-2 transition-all disabled:opacity-50"
+                                    >
+                                        {disconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+                                        {disconnecting ? 'Desconectando...' : 'Borrar conexión WhatsApp'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
