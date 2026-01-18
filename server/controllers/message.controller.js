@@ -133,6 +133,10 @@ export const sendMessage = async (req, res) => {
 
                     let finalMime = mimetype || 'image/jpeg';
 
+                    const options = {};
+                    if (req.body.caption) options.caption = req.body.caption;
+                    if (targetMessage) options.caption = targetMessage; // Priority to direct message param
+
                     // Auto-detect voice note intent
                     if (finalMime.startsWith('audio/')) {
                         options.sendAudioAsVoice = true;
