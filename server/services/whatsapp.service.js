@@ -31,67 +31,130 @@ class WhatsAppService {
         if (!userId) throw new Error('UserId is required for initialization');
 
         if (this.clients.has(userId)) {
-            console.log(`Client ${userId} already initialized`);
+            console.log(`[WA Service] Client ${userId} already exists.`);
             return this.clients.get(userId);
         }
 
-        console.log(`Initializing WhatsApp client for ${userId}...`);
+        console.log(`[WA Service] Initializing NEW WhatsApp client for ${userId}...`);
         this.emit('status_change', { status: 'INITIALIZING', userId });
 
         const client = new Client({
-            authStrategy: new LocalAuth({ clientId: userId }),
+            authStrategy: new LocalAuth({
+                clientId: userId,
+                dataPath: path.resolve(process.cwd(), '.wwebjs_auth')
+            }),
             puppeteer: {
                 headless: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--disable-software-rasterizer'
+                ]
             }
         });
 
         this.setupClientListeners(client, userId);
-        client.initialize();
+
+        // Asynchronous processing to prevent hanging
+        client.initialize().then(() => {
+            console.log(`[WA Service] Client initialize promise resolved for ${userId}`);
+        }).catch(err => {
+            console.error(`[WA Service] Client initialize REJECTED for ${userId}:`, err);
+            this.emit('status_change', { status: 'ERROR', userId });
+            this.clients.delete(userId);
+        });
+
         this.clients.set(userId, client);
         return client;
     }
 
     setupClientListeners(client, userId) {
         client.on('qr', (qr) => {
-            console.log(`QR RECEIVED for ${userId}`);
+            console.log(`[WA Service] QR RECEIVED for ${userId}`);
             this.emit('qr', { qr, userId });
         });
 
         client.on('ready', () => {
-            console.log(`WhatsApp Client ${userId} is ready!`);
+            console.log(`[WA Service] Client ${userId} is READY!`);
             this.emit('ready', { userId });
         });
 
         client.on('authenticated', () => {
-            console.log(`WhatsApp Client ${userId} authenticated`);
+            console.log(`[WA Service] Client ${userId} AUTHENTICATED`);
             this.emit('authenticated', { userId });
         });
 
         client.on('auth_failure', (msg) => {
-            console.error(`AUTHENTICATION FAILURE for ${userId}`, msg);
+            console.error(`[WA Service] AUTH FAILURE for ${userId}:`, msg);
             this.emit('auth_failure', { msg, userId });
         });
 
         client.on('message', async (msg) => {
-            console.log(`MESSAGE RECEIVED for ${userId}:`, msg.body);
-            this.handleWebhook(userId, msg, 'message'); // 'message' = received
+            // console.log(`[WA Service] Message for ${userId}:`, msg.body.substring(0, 50));
+            this.handleWebhook(userId, msg, 'message');
             this.emit('message', { msg, userId });
         });
 
-        // NEW: Trigger for SENT messages
         client.on('message_create', async (msg) => {
             if (msg.fromMe) {
-                // console.log(`MESSAGE SENT (Self) for ${userId}: Triggering Webhook...`);
-                this.handleWebhook(userId, msg, 'message_create'); // 'message_create' includes sent
+                this.handleWebhook(userId, msg, 'message_create');
             }
         });
 
-        client.on('disconnected', (reason) => {
-            console.log(`Client ${userId} was logged out`, reason);
+        client.on('disconnected', async (reason) => {
+            console.log(`[WA Service] Client ${userId} DISCONNECTED:`, reason);
             this.emit('disconnected', { reason, userId });
+
+            // Limpieza y destrucción forzada para evitar zombies
             this.clients.delete(userId);
+            try {
+                await client.destroy();
+            } catch (e) {
+                console.error(`[WA Service] Error destroying client ${userId} on disconnect:`, e);
+            }
         });
+    }
+
+    async logout(userId) {
+        if (!userId) {
+            console.error('[WA Service] Logout requested without userId');
+            return;
+        }
+
+        const client = this.clients.get(userId);
+        if (client) {
+            console.log(`[WA Service] Logging out client ${userId}...`);
+            try {
+                // Logout oficial
+                await client.logout();
+                console.log(`[WA Service] Logout successful for ${userId}`);
+            } catch (error) {
+                console.error(`[WA Service] Error logging out client ${userId}:`, error);
+
+                // Fallback: destrucción forzada si el navegador está colgado
+                try {
+                    console.log(`[WA Service] Forcing destroy for ${userId}...`);
+                    await client.destroy();
+                } catch (destroyError) {
+                    console.error(`[WA Service] Failed to force destroy ${userId}:`, destroyError);
+                }
+            } finally {
+                this.clients.delete(userId);
+
+                // Reiniciar cliente automáticamente después de un breve delay
+                // para que el usuario pueda volver a escanear inmediatamente
+                setTimeout(() => {
+                    console.log(`[WA Service] Restarting client for ${userId} to show QR...`);
+                    this.initializeClient(userId);
+                }, 2000);
+            }
+        } else {
+            console.warn(`[WA Service] No active client found for logout ${userId}`);
+            // Si no hay cliente activo, intentamos inicializar uno nuevo por si acaso quedó en el limbo
+            this.initializeClient(userId);
+        }
     }
 
     async handleWebhook(userId, msg, eventType = 'message') {
