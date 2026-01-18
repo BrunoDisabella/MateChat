@@ -14,6 +14,7 @@ export const config = {
     // Supabase credentials for scheduler
     supabaseUrl: process.env.SUPABASE_URL || 'https://oheapcbdvgmrmecgktak.supabase.co',
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oZWFwY2Jkdmdtcm1lY2drdGFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2MDY1MjMsImV4cCI6MjA3NzE4MjUyM30.h2I4EVQDTp9sXK7TkAmbDRXLi4Ar5Z_1zVeeTlBSpwI',
+    supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY, // Required for backend operations (bypassing RLS)
     paths: {
         root: path.resolve(__dirname, '../../'),
         dist: path.resolve(__dirname, '../../dist'),

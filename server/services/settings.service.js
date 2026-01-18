@@ -10,11 +10,24 @@ class SettingsService {
     }
 
     initialize() {
-        if (!config.supabaseUrl || !config.supabaseAnonKey) {
+        if (!config.supabaseUrl || (!config.supabaseAnonKey && !config.supabaseServiceKey)) {
             console.error('[Settings] Supabase credentials missing. Multi-tenancy will not work.');
             return;
         }
-        this.supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
+
+        const keyToUse = config.supabaseServiceKey || config.supabaseAnonKey;
+        if (config.supabaseServiceKey) {
+            console.log('[Settings] Initializes using SERVICE ROLE KEY (Bypassing RLS)');
+        } else {
+            console.warn('[Settings] Initialized using ANON KEY (RLS enforced - might fail for backend ops)');
+        }
+
+        this.supabase = createClient(config.supabaseUrl, keyToUse, {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+            }
+        });
         this.initialized = true;
         console.log('[Settings] Service initialized');
     }
