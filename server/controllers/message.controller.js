@@ -76,7 +76,29 @@ export const sendMessage = async (req, res) => {
                     const media = new MessageMedia(finalMime, base64, filename);
 
                     console.log(`[API - BG] Sending MEDIA to ${formattedPhone}`);
-                    await client.sendMessage(formattedPhone, media, { caption: targetMessage });
+
+                    const options = {};
+                    if (req.body.caption) options.caption = req.body.caption;
+                    if (targetMessage) options.caption = targetMessage; // Priority to direct message param
+
+                    // Auto-detect voice note intent
+                    if (finalMime.startsWith('audio/')) {
+                        options.sendAudioAsVoice = true; // Try to send as PTT
+                        console.log('[API - BG] Detected Audio: Sending as Voice Note');
+                    }
+
+                    try {
+                        await client.sendMessage(formattedPhone, media, options);
+                    } catch (sendError) {
+                        // Fallback: Try sending without voice note flag if it failed (maybe ffmpeg missing)
+                        if (options.sendAudioAsVoice) {
+                            console.warn('[API - BG] Voice Note failed (likely ffmpeg missing). Retrying as document...');
+                            delete options.sendAudioAsVoice;
+                            await client.sendMessage(formattedPhone, media, options);
+                        } else {
+                            throw sendError;
+                        }
+                    }
                 } else if (mediaUrl) {
                     // Legacy mediaUrl (URL text message)
                     const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
