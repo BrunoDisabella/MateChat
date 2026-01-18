@@ -45,6 +45,7 @@ app.get(/.*/, (req, res) => {
 // Initialize Services
 socketService.initialize(server);
 // whatsappService.initializeClient() removed for multi-tenancy. Clients are initialized on socket connection.
+whatsappService.restoreSessions(); // Restore persisted sessions on boot
 
 // Initialize and start Scheduler Service
 schedulerService.initialize();

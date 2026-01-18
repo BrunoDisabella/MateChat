@@ -13,6 +13,49 @@ class WhatsAppService {
         settingsService.initialize(); // Asegurar inicialización de servicio de settings
     }
 
+    /**
+     * Restore previous sessions from disk
+     */
+    async restoreSessions() {
+        // Delay slighty to ensure DB/Settings are ready
+        setTimeout(async () => {
+            const authPath = path.resolve(process.cwd(), '.wwebjs_auth');
+
+            if (!fs.existsSync(authPath)) {
+                console.log('[WA Service - Restore] Auth directory not found. No sessions to restore.');
+                return;
+            }
+
+            console.log('[WA Service - Restore] Scanning for existing sessions...');
+            try {
+                const files = fs.readdirSync(authPath, { withFileTypes: true });
+                const sessionFolders = files.filter(dirent => dirent.isDirectory() && dirent.name.startsWith('session-'));
+
+                console.log(`[WA Service - Restore] Found ${sessionFolders.length} sessions to restore.`);
+
+                for (const dirent of sessionFolders) {
+                    // Folder name is "session-<clientId>"
+                    // We need to extract <clientId> which is our userId
+                    const folderName = dirent.name;
+                    const userId = folderName.replace('session-', '');
+
+                    if (userId) {
+                        console.log(`[WA Service - Restore] Restoring session for user: ${userId}`);
+                        try {
+                            this.initializeClient(userId);
+                        } catch (err) {
+                            console.error(`[WA Service - Restore] Failed to restore ${userId}:`, err);
+                        }
+                        // Stagger restorations to avoid CPU spike
+                        await new Promise(r => setTimeout(r, 2000));
+                    }
+                }
+            } catch (error) {
+                console.error('[WA Service - Restore] Error scanning auth directory:', error);
+            }
+        }, 5000); // 5 sec delay after server boot
+    }
+
     on(event, callback) {
         if (!this.eventHandlers.has(event)) {
             this.eventHandlers.set(event, []);
