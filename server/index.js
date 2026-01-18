@@ -8,6 +8,7 @@ import path from 'path';
 import { config } from './config/index.js';
 import { socketService } from './services/socket.service.js';
 import { whatsappService } from './services/whatsapp.service.js';
+import { settingsService } from './services/settings.service.js';
 import { schedulerService } from './services/scheduler.service.js';
 import apiRoutes from './routes/api.routes.js';
 
@@ -42,7 +43,8 @@ app.get(/.*/, (req, res) => {
     }
 });
 
-// Initialize Services
+// Initialize Services (Order matters)
+settingsService.initialize(); // Initialize DB connection first
 socketService.initialize(server);
 // whatsappService.initializeClient() removed for multi-tenancy. Clients are initialized on socket connection.
 whatsappService.restoreSessions(); // Restore persisted sessions on boot
