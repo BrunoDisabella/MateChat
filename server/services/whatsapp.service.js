@@ -17,7 +17,7 @@ class WhatsAppService {
      * Restore previous sessions from disk
      */
     async restoreSessions() {
-        // Delay slighty to ensure DB/Settings are ready
+        // Small delay to allow server to bind port first
         setTimeout(async () => {
             const authPath = path.resolve(process.cwd(), '.wwebjs_auth_v2');
 
@@ -53,7 +53,7 @@ class WhatsAppService {
             } catch (error) {
                 console.error('[WA Service - Restore] Error scanning auth directory:', error);
             }
-        }, 5000); // 5 sec delay after server boot
+        }, 1000); // 1 sec delay after server boot
     }
 
     on(event, callback) {
@@ -210,11 +210,6 @@ class WhatsAppService {
             // Recuperar configuración de usuario desde Supabase
             const settings = await settingsService.getUserSettings(userId);
             let webhooks = settings?.webhooks || [];
-
-            // REMOVED: Forced global n8n webhook injection to respect user settings
-            // if (config.n8nWebhookUrl) {
-            //    webhooks.push({ url: config.n8nWebhookUrl, events: ['message', 'message_create'] });
-            // }
 
             if (!webhooks.length) {
                 return;

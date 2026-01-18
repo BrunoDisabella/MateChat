@@ -2,53 +2,10 @@ import { whatsappService } from '../services/whatsapp.service.js';
 import pkg from 'whatsapp-web.js';
 const { MessageMedia } = pkg;
 import { logApi } from '../services/logger.service.js';
-import ffmpeg from 'fluent-ffmpeg';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
-import { v4 as uuidv4 } from 'uuid';
+import { convertToOpus } from '../utils/media.utils.js';
 
 // Helper to convert audio to WA-compatible OGG/Opus
-const convertToOpus = async (base64Data) => {
-    return new Promise((resolve, reject) => {
-        const tempDir = os.tmpdir();
-        const inputPath = path.join(tempDir, `input_${uuidv4()}.mp3`); // Assume input is likely mp3/wav
-        const outputPath = path.join(tempDir, `output_${uuidv4()}.ogg`);
-
-        try {
-            // Write input file
-            fs.writeFileSync(inputPath, Buffer.from(base64Data, 'base64'));
-
-            ffmpeg(inputPath)
-                .audioCodec('libopus')
-                .audioBitrate('64k')
-                .audioChannels(1) // Mono is crucial for WhatsApp PTT
-                .format('ogg')
-                .on('end', () => {
-                    const convertedBase64 = fs.readFileSync(outputPath).toString('base64');
-                    // Cleanup
-                    try {
-                        fs.unlinkSync(inputPath);
-                        fs.unlinkSync(outputPath);
-                    } catch (cleanupErr) {
-                        console.error('Conversion cleanup failed', cleanupErr);
-                    }
-                    resolve(convertedBase64);
-                })
-                .on('error', (err) => {
-                    console.error('FFmpeg conversion error:', err);
-                    // Try to cleanup
-                    if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
-                    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-                    reject(err);
-                })
-                .save(outputPath);
-
-        } catch (e) {
-            reject(e);
-        }
-    });
-};
+// Moved to ../utils/media.utils.js
 
 export const sendMessage = async (req, res) => {
     try {
