@@ -115,33 +115,6 @@ class WhatsAppService {
         });
 
         this.clients.set(userId, client);
-
-        // --------------------------------------------------------------------------------------------
-        // MONKEY PATCH: Fix for 'markedUnread' crash (window.WWebJS.sendSeen is broken in new WA)
-        // We replace client.sendSeen with a safe version using Store.SendSeen.markSeen
-        // --------------------------------------------------------------------------------------------
-        const originalSendSeen = client.sendSeen.bind(client);
-        client.sendSeen = async (chatId) => {
-            return await client.pupPage.evaluate(async (chatId) => {
-                try {
-                    const chat = await window.WWebJS.getChat(chatId, { getAsModel: false });
-                    if (!chat) return false;
-
-                    // The community fix: use markSeen instead of sendSeen
-                    if (window.Store && window.Store.SendSeen && window.Store.SendSeen.markSeen) {
-                        await window.Store.SendSeen.markSeen(chat, true);
-                        return true;
-                    } else {
-                        // Fallback to original if new method not found (unlikely)
-                        return window.WWebJS.sendSeen(chatId);
-                    }
-                } catch (e) {
-                    console.error('[MonkeyPatch] sendSeen failed:', e);
-                    return false;
-                }
-            }, chatId);
-        };
-
         return client;
     }
 
