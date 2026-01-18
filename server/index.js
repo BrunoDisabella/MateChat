@@ -44,7 +44,7 @@ app.get(/.*/, (req, res) => {
 
 // Initialize Services
 socketService.initialize(server);
-whatsappService.initializeClient(); // Default user
+// whatsappService.initializeClient() removed for multi-tenancy. Clients are initialized on socket connection.
 
 // Initialize and start Scheduler Service
 schedulerService.initialize();
