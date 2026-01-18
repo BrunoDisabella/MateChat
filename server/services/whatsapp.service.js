@@ -19,7 +19,7 @@ class WhatsAppService {
     async restoreSessions() {
         // Delay slighty to ensure DB/Settings are ready
         setTimeout(async () => {
-            const authPath = path.resolve(process.cwd(), '.wwebjs_auth');
+            const authPath = path.resolve(process.cwd(), '.wwebjs_auth_v2');
 
             if (!fs.existsSync(authPath)) {
                 console.log('[WA Service - Restore] Auth directory not found. No sessions to restore.');
@@ -84,7 +84,7 @@ class WhatsAppService {
         const client = new Client({
             authStrategy: new LocalAuth({
                 clientId: userId,
-                dataPath: path.resolve(process.cwd(), '.wwebjs_auth')
+                dataPath: path.resolve(process.cwd(), '.wwebjs_auth_v2')
             }),
             puppeteer: {
                 headless: true,
