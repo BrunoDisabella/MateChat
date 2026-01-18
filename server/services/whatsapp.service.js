@@ -163,10 +163,10 @@ class WhatsAppService {
             const settings = await settingsService.getUserSettings(userId);
             let webhooks = settings?.webhooks || [];
 
-            // Add global n8n webhook if configured
-            if (config.n8nWebhookUrl) {
-                webhooks.push({ url: config.n8nWebhookUrl, events: ['message', 'message_create'] });
-            }
+            // REMOVED: Forced global n8n webhook injection to respect user settings
+            // if (config.n8nWebhookUrl) {
+            //    webhooks.push({ url: config.n8nWebhookUrl, events: ['message', 'message_create'] });
+            // }
 
             if (!webhooks.length) {
                 return;
