@@ -52,7 +52,16 @@ function App() {
     }, []);
 
     const getServerUrl = useCallback(() => {
-        // Si estás en local con Vite proxy, usa la relativa o localhost explicitamente
+        // En producción, usar la misma URL donde está sirviendo el frontend
+        // En desarrollo local, usar localhost:3001
+        if (typeof window !== 'undefined') {
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            if (isLocalhost) {
+                return 'http://localhost:3001';
+            }
+            // En producción, usar el mismo origen (el backend sirve el frontend)
+            return window.location.origin;
+        }
         return 'http://localhost:3001';
     }, []);
 
