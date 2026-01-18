@@ -110,7 +110,14 @@ class SocketService {
             socket.on('save-webhooks', (webhooks) => {
                 console.log(`[Settings] Saving ${webhooks.length} webhooks`);
                 try {
-                    const webhooksPath = path.resolve(process.cwd(), 'server', 'data', 'webhooks.json');
+                    const dataDir = path.resolve(process.cwd(), 'server', 'data');
+                    const webhooksPath = path.join(dataDir, 'webhooks.json');
+
+                    // Crear directorio si no existe
+                    if (!fs.existsSync(dataDir)) {
+                        fs.mkdirSync(dataDir, { recursive: true });
+                    }
+
                     fs.writeFileSync(webhooksPath, JSON.stringify(webhooks, null, 2));
 
                     socket.emit('settings-updated', { success: true });
