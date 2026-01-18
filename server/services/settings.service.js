@@ -10,11 +10,11 @@ class SettingsService {
     }
 
     initialize() {
-        if (!config.supabaseUrl || !config.supabaseKey) {
+        if (!config.supabaseUrl || !config.supabaseAnonKey) {
             console.error('[Settings] Supabase credentials missing. Multi-tenancy will not work.');
             return;
         }
-        this.supabase = createClient(config.supabaseUrl, config.supabaseKey);
+        this.supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
         this.initialized = true;
         console.log('[Settings] Service initialized');
     }
