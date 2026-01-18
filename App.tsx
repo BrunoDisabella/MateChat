@@ -110,8 +110,16 @@ function App() {
             newSocket.emit('client-ready');
         });
 
-        newSocket.on('disconnect', () => {
-            logEvent('Disconnect');
+        newSocket.on('connect_error', (err) => {
+            logEvent('Connect Error', err.message);
+            // Si el error es de autenticación, mostrarlo
+            if (err.message.includes('userId')) {
+                toast.error('Error de conexión: Usuario no identificado');
+            }
+        });
+
+        newSocket.on('disconnect', (reason) => {
+            logEvent('Disconnect', reason);
             setIsConnected(false);
         });
 
