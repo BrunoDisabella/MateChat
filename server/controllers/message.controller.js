@@ -102,6 +102,8 @@ export const sendMessage = async (req, res) => {
                     }
 
                     try {
+                        // Fix: prevent crash on 'markedUnread' by not sending seen status
+                        options.sendSeen = false;
                         await client.sendMessage(formattedPhone, media, options);
                         logApi(`[Background] MEDIA Sent Successfully to ${formattedPhone}`);
                     } catch (sendError) {
@@ -111,6 +113,7 @@ export const sendMessage = async (req, res) => {
                         if (options.sendAudioAsVoice) {
                             logApi('[Background] Retrying voice note as document...');
                             delete options.sendAudioAsVoice;
+                            options.sendSeen = false; // Re-apply for safety
                             await client.sendMessage(formattedPhone, media, options);
                             logApi(`[Background] Fallback MEDIA Sent Successfully`);
                         } else {
@@ -120,7 +123,8 @@ export const sendMessage = async (req, res) => {
                 } else if (mediaUrl) {
                     // Legacy mediaUrl (URL text message)
                     const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
-                    await client.sendMessage(formattedPhone, textToSend);
+                    const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
+                    await client.sendMessage(formattedPhone, textToSend, { sendSeen: false });
                     logApi(`[Background] URL Message Sent to ${formattedPhone}`);
                 } else {
                     console.log(`[API - BG] Sending text to ${formattedPhone}`);
@@ -128,7 +132,7 @@ export const sendMessage = async (req, res) => {
                     if (chat) {
                         await chat.sendMessage(targetMessage);
                     } else {
-                        await client.sendMessage(formattedPhone, targetMessage);
+                        await client.sendMessage(formattedPhone, targetMessage, { sendSeen: false });
                     }
                     logApi(`[Background] Text Message Sent to ${formattedPhone}`);
                 }
