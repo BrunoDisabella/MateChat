@@ -63,12 +63,22 @@ class SocketService {
 
             // --- SETTINGS (API & WEBHOOKS) ---
             socket.on('get-settings', () => {
-                const webhooksPath = path.resolve(process.cwd(), 'server', 'data', 'webhooks.json');
+                const dataDir = path.resolve(process.cwd(), 'server', 'data');
+                const webhooksPath = path.join(dataDir, 'webhooks.json');
+
+                console.log(`[Settings] Loading webhooks from: ${webhooksPath}`);
+
                 let webhooks = [];
                 if (fs.existsSync(webhooksPath)) {
                     try {
-                        webhooks = JSON.parse(fs.readFileSync(webhooksPath, 'utf8'));
-                    } catch (e) { console.error('Error reading webhooks:', e); }
+                        const content = fs.readFileSync(webhooksPath, 'utf8');
+                        webhooks = JSON.parse(content);
+                        console.log(`[Settings] Loaded ${webhooks.length} webhooks:`, JSON.stringify(webhooks));
+                    } catch (e) {
+                        console.error('[Settings] Error reading webhooks:', e);
+                    }
+                } else {
+                    console.log('[Settings] webhooks.json does not exist yet');
                 }
 
                 socket.emit('settings-data', {
@@ -108,17 +118,24 @@ class SocketService {
             });
 
             socket.on('save-webhooks', (webhooks) => {
-                console.log(`[Settings] Saving ${webhooks.length} webhooks`);
+                console.log(`[Settings] Saving ${webhooks.length} webhooks:`, JSON.stringify(webhooks));
                 try {
                     const dataDir = path.resolve(process.cwd(), 'server', 'data');
                     const webhooksPath = path.join(dataDir, 'webhooks.json');
 
+                    console.log(`[Settings] Saving to path: ${webhooksPath}`);
+
                     // Crear directorio si no existe
                     if (!fs.existsSync(dataDir)) {
                         fs.mkdirSync(dataDir, { recursive: true });
+                        console.log(`[Settings] Created directory: ${dataDir}`);
                     }
 
                     fs.writeFileSync(webhooksPath, JSON.stringify(webhooks, null, 2));
+
+                    // Verificar que se guardó correctamente
+                    const saved = fs.readFileSync(webhooksPath, 'utf8');
+                    console.log(`[Settings] Verified saved content: ${saved}`);
 
                     socket.emit('settings-updated', { success: true });
 
