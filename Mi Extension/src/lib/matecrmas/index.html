@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MateCRM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.7",
+    "express": "https://aistudiocdn.com/express@^5.1.0",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "cors": "https://aistudiocdn.com/cors@^2.8.5",
+    "fs/": "https://aistudiocdn.com/fs@^0.0.1-security/",
+    "axios": "https://aistudiocdn.com/axios@^1.13.2",
+    "dotenv/": "https://aistudiocdn.com/dotenv@^17.2.3/",
+    "sonner": "https://aistudiocdn.com/sonner@^2.0.7"
+  }
+}
+</script>
+<!-- Agregamos Babel para transpilar JSX en el navegador -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<!-- AÑADIMOS EL "DICCIONARIO" DE TYPESCRIPT PARA BABEL -->
+<script src="https://unpkg.com/@babel/preset-typescript/standalone/typescript.min.js"></script>
+<style>
+    @keyframes fade-in-up {
+        from { opacity: 0; transform: translateY(10px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .animate-fade-in-up {
+        animation: fade-in-up 0.2s ease-out forwards;
+    }
+</style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <div id="root"></div>
+    <!-- Corregimos el orden de los presets: TypeScript debe ejecutarse antes que React -->
+    <script type="text/babel" data-type="module" data-presets="react,typescript" src="index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

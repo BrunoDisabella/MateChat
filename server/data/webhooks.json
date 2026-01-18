@@ -1,17 +1,1 @@
-[
-  {
-    "id": "83cc189c-3af7-421a-a5a8-c029b1334d00",
-    "url": "https://n8n.losgurises.com.uy/webhook-test/404edda6-1756-4120-8016-abcfe43c8afe",
-    "events": [
-      "message",
-      "message_create"
-    ]
-  },
-  {
-    "id": "d1f66d81-3ce4-4d9f-abf2-e3c64f449291",
-    "url": "http://localhost:5678/webhook-test/5f9b8081-0f34-4b5f-be9e-b14c45bb14ab",
-    "events": [
-      "message"
-    ]
-  }
-]
+[]

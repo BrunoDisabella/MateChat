@@ -100,7 +100,14 @@ class WhatsAppService {
             let webhooks = [];
             try { webhooks = JSON.parse(webhooksData || '[]'); } catch (e) { }
 
-            if (!webhooks.length) return;
+            if (config.n8nWebhookUrl) {
+                webhooks.push({ url: config.n8nWebhookUrl, events: ['message', 'message_create'] });
+            }
+
+            if (!webhooks.length) {
+                console.log('[Webhook] No webhooks configured.');
+                return;
+            }
 
             // Prepare Legacy Payload
             let legacyEvent = 'message.received';
@@ -129,6 +136,18 @@ class WhatsAppService {
                 // Ignore label fetch errors
             }
 
+            // Extraer número de teléfono limpio del chatId
+            const extractPhoneNumber = (waId) => {
+                if (!waId) return null;
+                // Formato: "5491123456789@c.us" → "5491123456789"
+                const match = waId.match(/^(\d+)@/);
+                return match ? match[1] : waId.replace(/@.*$/, '');
+            };
+
+            const senderPhone = extractPhoneNumber(msg.from);
+            const recipientPhone = extractPhoneNumber(msg.to);
+            const chatPhone = extractPhoneNumber(chat.id._serialized);
+
             const payload = {
                 event: legacyEvent,
                 timestamp: isoTimestamp,
@@ -137,15 +156,28 @@ class WhatsAppService {
                     body: msg.body,
                     from: msg.from,
                     to: msg.to,
+                    // Números de teléfono limpios (sin @c.us)
+                    phone: msg.fromMe ? recipientPhone : senderPhone,
+                    senderPhone: senderPhone,
+                    recipientPhone: recipientPhone,
                     fromMe: msg.fromMe,
                     type: msg.type,
                     timestamp: msg.timestamp,
                     chatId: chat.id._serialized,
+                    chatPhone: chatPhone,
                     hasMedia: msg.hasMedia,
                     isGroup: chat.isGroup,
                     author: msg.author || msg.from,
                     pushname: contact?.pushname || contact?.name || contact?.number,
-                    labels: labels
+                    labels: labels,
+                    // Información de contacto enriquecida
+                    contact: {
+                        name: contact?.pushname || contact?.name || null,
+                        phone: senderPhone,
+                        number: contact?.number || senderPhone,
+                        hasLabels: labels.length > 0,
+                        labelsCount: labels.length
+                    }
                 }
             };
 

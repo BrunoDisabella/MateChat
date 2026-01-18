@@ -1,0 +1,25 @@
+{
+  "name": "crm-backend-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor backend para MateCRM para interactuar con la API de Mercado Libre.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "mercadolibre",
+    "api",
+    "crm"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.43.5",
+    "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}

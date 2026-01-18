@@ -1,0 +1,7 @@
+{
+  "name": "Funcio MateChat 2/12",
+  "description": "Cliente web profesional para WhatsApp basado en React, Socket.IO y Supabase.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

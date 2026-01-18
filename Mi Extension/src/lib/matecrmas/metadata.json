@@ -1,0 +1,5 @@
+{
+  "name": "MateCRM",
+  "description": "MateCRM es un CRM minimalista para gestionar productos, incluyendo nombre, imagen, costo y precio de venta. Permite agregar, editar y eliminar productos de tu inventario.",
+  "requestFramePermissions": []
+}

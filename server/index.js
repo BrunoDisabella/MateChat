@@ -8,14 +8,22 @@ import path from 'path';
 import { config } from './config/index.js';
 import { socketService } from './services/socket.service.js';
 import { whatsappService } from './services/whatsapp.service.js';
+import { schedulerService } from './services/scheduler.service.js';
 import apiRoutes from './routes/api.routes.js';
 
 const app = express();
 const server = http.createServer(app);
 
+// Debug: Log early request
+app.use((req, res, next) => {
+    console.log(`[Server] Incoming request: ${req.method} ${req.url} from ${req.ip}`);
+    next();
+});
+
 // Config basic
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Routes
 app.use('/api', apiRoutes);
@@ -38,6 +46,10 @@ app.get(/.*/, (req, res) => {
 socketService.initialize(server);
 whatsappService.initializeClient(); // Default user
 
+// Initialize and start Scheduler Service
+schedulerService.initialize();
+schedulerService.start();
+
 // Start Server
 server.listen(config.port, () => {
     console.log(`
@@ -46,3 +58,8 @@ server.listen(config.port, () => {
     - Webhook Target: ${config.n8nWebhookUrl || 'Not configured'}
     `);
 });
+
+// Tuning Timeouts
+server.keepAliveTimeout = 65000; // Ensure it's larger than load balancer timeout
+server.headersTimeout = 66000;
+server.requestTimeout = 0; // Disable default timeout for testing

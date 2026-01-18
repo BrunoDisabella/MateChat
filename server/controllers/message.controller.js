@@ -1,7 +1,11 @@
 import { whatsappService } from '../services/whatsapp.service.js';
+import pkg from 'whatsapp-web.js';
+const { MessageMedia } = pkg;
 
 export const sendMessage = async (req, res) => {
     try {
+        console.log(`[API] sendMessage request received. Body size ~${JSON.stringify(req.body).length} bytes`);
+
         const { phone, message, mediaUrl, chatId, text } = req.body;
         const userId = req.userId || 'default-user'; // Viene del middleware
 
@@ -9,7 +13,8 @@ export const sendMessage = async (req, res) => {
         let targetPhone = phone || chatId;
         const targetMessage = message || text;
 
-        if (!targetPhone || (!targetMessage && !mediaUrl)) {
+        if (!targetPhone || (!targetMessage && !mediaUrl && !req.body.media)) {
+            console.warn('[API] Missing required fields in sendMessage');
             return res.status(400).json({
                 error: 'Missing required fields: phone (or chatId) AND message (or text/mediaUrl)'
             });
@@ -17,6 +22,7 @@ export const sendMessage = async (req, res) => {
 
         const client = whatsappService.getClient(userId);
         if (!client) {
+            console.error('[API] WhatsApp client not initialized');
             return res.status(503).json({ error: 'WhatsApp client not initialized or ready' });
         }
 
@@ -28,42 +34,74 @@ export const sendMessage = async (req, res) => {
             formattedPhone = targetPhone.replace(/\D/g, '') + '@c.us';
         }
 
-        // Check if chat exists before sending
-        let chat;
-        try {
-            chat = await client.getChatById(formattedPhone);
-        } catch (e) {
-            console.warn(`[API] Check chat failed for ${formattedPhone}:`, e.message);
-        }
-
-        if (!chat) {
-            // Attempt to send blindly if checks fail (legacy behavior), but log it
-            console.warn(`[API] Chat object not found for ${formattedPhone}. Trying client.sendMessage directly.`);
-            // NOTE: If this fails with 'getChat' error, it means the number is invalid or not registered.
-        }
-
-        let response;
-        if (mediaUrl) {
-            const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
-            response = await client.sendMessage(formattedPhone, textToSend);
-        } else {
-            console.log(`[API] Sending text to ${formattedPhone}`);
-            // Prefer chat.sendMessage if chat object exists (more stable)
-            if (chat) {
-                response = await chat.sendMessage(targetMessage);
-            } else {
-                response = await client.sendMessage(formattedPhone, targetMessage);
-            }
-        }
-
-        return res.json({
+        // Respond IMMEDIATELY to prevent timeout
+        res.json({
             success: true,
-            messageId: response.id._serialized,
-            timestamp: response.timestamp
+            status: 'queued',
+            timestamp: Date.now(),
+            note: 'Message is processing in background'
         });
+
+        // ---------------------------------------------------------
+        // BACKGROUND PROCESSING (Async - No Await needed for Response)
+        // ---------------------------------------------------------
+        (async () => {
+            try {
+                // Check if chat exists before sending
+                let chat;
+                try {
+                    chat = await client.getChatById(formattedPhone);
+                } catch (e) {
+                    console.warn(`[API - BG] Check chat failed for ${formattedPhone}:`, e.message);
+                }
+
+                if (!chat) {
+                    // Attempt to send blindly if checks fail (legacy behavior), but log it
+                    console.warn(`[API - BG] Chat object not found for ${formattedPhone}. Trying client.sendMessage directly.`);
+                }
+
+                if (req.body.media && req.body.media.base64) {
+                    let { base64, mimetype, filename } = req.body.media;
+
+                    // Validate & Clean Base64
+                    if (typeof base64 !== 'string') {
+                        throw new Error('Media base64 must be a string');
+                    }
+                    // Remove common data URI prefixes if present
+                    base64 = base64.replace(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/, '');
+
+                    const finalMime = mimetype || 'image/jpeg';
+                    console.log(`[API - BG] Processing MEDIA. Mime: ${finalMime}, Length: ${base64.length}`);
+
+                    const media = new MessageMedia(finalMime, base64, filename);
+
+                    console.log(`[API - BG] Sending MEDIA to ${formattedPhone}`);
+                    await client.sendMessage(formattedPhone, media, { caption: targetMessage });
+                } else if (mediaUrl) {
+                    // Legacy mediaUrl (URL text message)
+                    const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
+                    await client.sendMessage(formattedPhone, textToSend);
+                } else {
+                    console.log(`[API - BG] Sending text to ${formattedPhone}`);
+                    // Prefer chat.sendMessage if chat object exists (more stable)
+                    if (chat) {
+                        await chat.sendMessage(targetMessage);
+                    } else {
+                        await client.sendMessage(formattedPhone, targetMessage);
+                    }
+                }
+                console.log(`[API - BG] Message sent successfully to ${formattedPhone}`);
+            } catch (bgError) {
+                console.error(`[API - BG] FAILED to send message to ${formattedPhone}:`, bgError);
+            }
+        })();
 
     } catch (error) {
         console.error('API Send Message Error:', error);
-        return res.status(500).json({ error: error.message });
+        // Only valid if response hasn't been sent yet (though we send it early now)
+        if (!res.headersSent) {
+            return res.status(500).json({ error: error.message });
+        }
     }
 };
+
