@@ -1,6 +1,7 @@
 import { whatsappService } from '../services/whatsapp.service.js';
 import pkg from 'whatsapp-web.js';
 const { MessageMedia } = pkg;
+import { logApi } from '../services/logger.service.js';
 
 export const sendMessage = async (req, res) => {
     try {
