@@ -123,7 +123,6 @@ export const sendMessage = async (req, res) => {
                 } else if (mediaUrl) {
                     // Legacy mediaUrl (URL text message)
                     const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
-                    const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
                     await client.sendMessage(formattedPhone, textToSend, { sendSeen: false });
                     logApi(`[Background] URL Message Sent to ${formattedPhone}`);
                 } else {
