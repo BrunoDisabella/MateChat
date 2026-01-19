@@ -25,10 +25,21 @@ export const sendMessage = async (req, res) => {
             });
         }
 
-        const client = whatsappService.getClient(userId);
+        let client = whatsappService.getClient(userId);
         if (!client) {
-            console.error('[API] WhatsApp client not initialized');
-            return res.status(503).json({ error: 'WhatsApp client not initialized or ready' });
+            console.warn(`[API] WhatsApp client for ${userId} not found. Attempting to initialize...`);
+            // Attempt to restore/initialize
+            try {
+                whatsappService.initializeClient(userId);
+                // Return 503 Service Unavailable so the caller knows to retry
+                return res.status(503).json({
+                    error: 'WhatsApp client was not running. Initialization started. Please retry in 10 seconds.',
+                    retryAfter: 10
+                });
+            } catch (initError) {
+                console.error('[API] Failed to re-initialize client:', initError);
+                return res.status(500).json({ error: 'WhatsApp client unreachable and failed to restart.' });
+            }
         }
 
         // Validate and Format Phone/ChatId
