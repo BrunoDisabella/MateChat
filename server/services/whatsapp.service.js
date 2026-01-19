@@ -10,6 +10,8 @@ class WhatsAppService {
     constructor() {
         this.clients = new Map();
         this.eventHandlers = new Map(); // Para comunicar eventos al SocketService sin dependencia circular directa
+        this.healthCheckIntervals = new Map(); // Intervalos de health check por usuario
+        this.explicitLogouts = new Set(); // Track intentional logouts
         settingsService.initialize(); // Asegurar inicialización de servicio de settings
     }
 
@@ -127,6 +129,7 @@ class WhatsAppService {
         client.on('ready', () => {
             console.log(`[WA Service] Client ${userId} is READY!`);
             this.emit('ready', { userId });
+            this.startHealthCheck(userId);
         });
 
         client.on('authenticated', () => {
@@ -155,12 +158,24 @@ class WhatsAppService {
             console.log(`[WA Service] Client ${userId} DISCONNECTED:`, reason);
             this.emit('disconnected', { reason, userId });
 
-            // Limpieza y destrucción forzada para evitar zombies
+            this.stopHealthCheck(userId);
             this.clients.delete(userId);
+
             try {
                 await client.destroy();
             } catch (e) {
                 console.error(`[WA Service] Error destroying client ${userId} on disconnect:`, e);
+            }
+
+            // Auto-reconnect if not explicit logout
+            if (!this.explicitLogouts.has(userId)) {
+                console.log(`[WA Service] Detected accidental disconnect for ${userId}. Reconnecting in 5s...`);
+                setTimeout(() => {
+                    this.initializeClient(userId);
+                }, 5000);
+            } else {
+                console.log(`[WA Service] Explicit logout for ${userId}. No reconnect.`);
+                this.explicitLogouts.delete(userId);
             }
         });
     }
@@ -174,6 +189,8 @@ class WhatsAppService {
         const client = this.clients.get(userId);
         if (client) {
             console.log(`[WA Service] Logging out client ${userId}...`);
+            this.explicitLogouts.add(userId); // Mark as intentional
+            this.stopHealthCheck(userId);
             try {
                 // Logout oficial
                 await client.logout();
@@ -254,6 +271,28 @@ class WhatsAppService {
             const recipientPhone = extractPhoneNumber(msg.to);
             const chatPhone = extractPhoneNumber(chat.id._serialized);
 
+            // FIX: Force chatId to be phone-number based (@c.us) for private chats
+            // Recent WA updates use @lid for some IDs. We must resolve the real phone number.
+            let finalChatId = chat.id._serialized;
+            let finalChatPhone = chatPhone; // Default to regex extraction
+
+            // Resolve accurate phone number for private chats
+            if (!chat.isGroup) {
+                try {
+                    const chatContact = await chat.getContact();
+                    if (chatContact && chatContact.number) {
+                        finalChatPhone = chatContact.number;
+                        finalChatId = `${finalChatPhone}@c.us`;
+                    }
+                } catch (err) {
+                    console.warn('[Webhook] Failed to resolve chat contact:', err);
+                }
+            }
+
+            // Correction for phone fields in payload
+            const finalSenderPhone = msg.fromMe ? extractPhoneNumber(msg.from) : finalChatPhone;
+            const finalRecipientPhone = msg.fromMe ? finalChatPhone : extractPhoneNumber(msg.to);
+
             const payload = {
                 event: legacyEvent,
                 timestamp: isoTimestamp,
@@ -262,15 +301,15 @@ class WhatsAppService {
                     body: msg.body,
                     from: msg.from,
                     to: msg.to,
-                    // Números de teléfono limpios (sin @c.us)
-                    phone: msg.fromMe ? recipientPhone : senderPhone,
-                    senderPhone: senderPhone,
-                    recipientPhone: recipientPhone,
+                    // Phone numbers aligned with corrected Chat ID
+                    phone: msg.fromMe ? finalRecipientPhone : finalSenderPhone,
+                    senderPhone: finalSenderPhone,
+                    recipientPhone: finalRecipientPhone,
                     fromMe: msg.fromMe,
                     type: msg.type,
                     timestamp: msg.timestamp,
-                    chatId: chat.id._serialized,
-                    chatPhone: chatPhone,
+                    chatId: finalChatId,
+                    chatPhone: finalChatPhone,
                     hasMedia: msg.hasMedia,
                     isGroup: chat.isGroup,
                     author: msg.author || msg.from,
@@ -279,16 +318,19 @@ class WhatsAppService {
                     // Información de contacto enriquecida
                     contact: {
                         name: contact?.pushname || contact?.name || null,
-                        phone: senderPhone,
-                        number: contact?.number || senderPhone,
+                        // Fix contact phone in payload if it refers to the client
+                        phone: !msg.fromMe ? finalChatPhone : senderPhone,
+                        number: !msg.fromMe ? finalChatPhone : (contact?.number || senderPhone),
                         hasLabels: labels.length > 0,
                         labelsCount: labels.length
                     }
                 }
             };
+        }
+            };
 
             // Send to compatible webhooks
-            console.log(`[Webhook] Processing ${legacyEvent} for ${webhooks.length} hooks`);
+            console.log(`[Webhook] Processing ${legacyEvent} for ${ webhooks.length } hooks`);
 
             webhooks.forEach(async (hook) => {
                 const hookEvents = hook.events || [];
@@ -300,10 +342,10 @@ class WhatsAppService {
                 if (!shouldSend) return;
 
                 try {
-                    console.log(`[Webhook] Sending to ${hook.url}`);
+                    console.log(`[Webhook] Sending to ${ hook.url } `);
                     await axios.post(hook.url, payload);
                 } catch (err) {
-                    console.error(`[Webhook] Failed to send to ${hook.url}:`, err.message);
+                    console.error(`[Webhook] Failed to send to ${ hook.url }: `, err.message);
                 }
             });
 
@@ -324,11 +366,11 @@ class WhatsAppService {
             // Obtener objeto chat
             const chat = await client.getChatById(chatId);
             if (!chat) {
-                console.warn(`[DEBUG] Chat not found for ID: ${chatId}`);
+                console.warn(`[DEBUG] Chat not found for ID: ${ chatId } `);
                 return [];
             }
 
-            console.log(`[DEBUG] Fetching ${limit} messages for chat ${chat.name}...`);
+            console.log(`[DEBUG] Fetching ${ limit } messages for chat ${ chat.name }...`);
 
             const options = { limit };
             if (before) {
@@ -371,7 +413,7 @@ class WhatsAppService {
         try {
             console.log('[DEBUG] Start fetching chats from WA...');
             const chats = await client.getChats();
-            console.log(`[DEBUG] Fetched ${chats.length} raw chats.`);
+            console.log(`[DEBUG] Fetched ${ chats.length } raw chats.`);
 
             // Mapeo enriquecido con hidratación de etiquetas
             const formattedChats = await Promise.all(chats.map(async chat => {
@@ -490,7 +532,7 @@ class WhatsAppService {
         const client = this.clients.get(userId);
         if (client) {
             try {
-                console.log(`Logging out client ${userId}...`);
+                console.log(`Logging out client ${ userId }...`);
                 await client.logout();
                 this.clients.delete(userId);
                 setTimeout(() => this.initializeClient(userId), 1000);
@@ -508,7 +550,7 @@ class WhatsAppService {
         if (!client) throw new Error('Client not initialized');
 
         // Formato seguro de Chat ID
-        const targetChatId = chatId.includes('@') ? chatId : `${chatId.replace(/\D/g, '')}@c.us`;
+        const targetChatId = chatId.includes('@') ? chatId : `${ chatId.replace(/\D/g, '') } @c.us`;
 
         // labelIds debe ser un array
         const labelsToProcess = Array.isArray(labelIds) ? labelIds : [labelIds];
@@ -567,7 +609,7 @@ class WhatsAppService {
 
             const chat = await client.getChatById(targetChatId);
             if (!chat) {
-                console.warn(`[Labels] Chat not found for ${targetChatId} after update. Returning empty.`);
+                console.warn(`[Labels] Chat not found for ${ targetChatId } after update.Returning empty.`);
                 return [];
             }
             return await chat.getLabels();
@@ -587,6 +629,61 @@ class WhatsAppService {
             }
         }
     }
+}
+
+startHealthCheck(userId) {
+    if (this.healthCheckIntervals.has(userId)) return;
+
+    console.log(`[WA Service] Starting Health Check for ${ userId }`);
+    const interval = setInterval(async () => {
+        const client = this.clients.get(userId);
+        if (!client) {
+            this.stopHealthCheck(userId);
+            return;
+        }
+
+        try {
+            // Race condition check: If getState takes too long, it's frozen
+            const statePromise = client.getState();
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout')), 10000)
+            );
+
+            const state = await Promise.race([statePromise, timeoutPromise]);
+
+            if (state !== 'CONNECTED') {
+                console.warn(`[Health Check] User ${ userId } state is ${ state }. Restarting...`);
+                this.restartClient(userId);
+            }
+        } catch (err) {
+            console.error(`[Health Check] Failed for ${ userId }(Err: ${ err.message }).Client might be zombie.Restarting...`);
+            this.restartClient(userId);
+        }
+    }, 5 * 60 * 1000); // Check every 5 minutes
+
+    this.healthCheckIntervals.set(userId, interval);
+}
+
+stopHealthCheck(userId) {
+    if (this.healthCheckIntervals.has(userId)) {
+        clearInterval(this.healthCheckIntervals.get(userId));
+        this.healthCheckIntervals.delete(userId);
+    }
+}
+
+    async restartClient(userId) {
+    console.log(`[WA Service] Restarting client for ${ userId }...`);
+    this.stopHealthCheck(userId);
+
+    const client = this.clients.get(userId);
+    if (client) {
+        this.clients.delete(userId);
+        try { await client.destroy(); } catch (e) { }
+    }
+
+    // Wait and re-init
+    setTimeout(() => this.initializeClient(userId), 5000);
+}
 }
 
 export const whatsappService = new WhatsAppService();
