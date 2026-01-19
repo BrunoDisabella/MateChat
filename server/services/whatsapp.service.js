@@ -326,11 +326,9 @@ class WhatsAppService {
                     }
                 }
             };
-        }
-            };
 
             // Send to compatible webhooks
-            console.log(`[Webhook] Processing ${legacyEvent} for ${ webhooks.length } hooks`);
+            console.log(`[Webhook] Processing ${legacyEvent} for ${webhooks.length} hooks`);
 
             webhooks.forEach(async (hook) => {
                 const hookEvents = hook.events || [];
@@ -342,10 +340,10 @@ class WhatsAppService {
                 if (!shouldSend) return;
 
                 try {
-                    console.log(`[Webhook] Sending to ${ hook.url } `);
+                    console.log(`[Webhook] Sending to ${hook.url} `);
                     await axios.post(hook.url, payload);
                 } catch (err) {
-                    console.error(`[Webhook] Failed to send to ${ hook.url }: `, err.message);
+                    console.error(`[Webhook] Failed to send to ${hook.url}: `, err.message);
                 }
             });
 
@@ -366,11 +364,11 @@ class WhatsAppService {
             // Obtener objeto chat
             const chat = await client.getChatById(chatId);
             if (!chat) {
-                console.warn(`[DEBUG] Chat not found for ID: ${ chatId } `);
+                console.warn(`[DEBUG] Chat not found for ID: ${chatId} `);
                 return [];
             }
 
-            console.log(`[DEBUG] Fetching ${ limit } messages for chat ${ chat.name }...`);
+            console.log(`[DEBUG] Fetching ${limit} messages for chat ${chat.name}...`);
 
             const options = { limit };
             if (before) {
@@ -413,7 +411,7 @@ class WhatsAppService {
         try {
             console.log('[DEBUG] Start fetching chats from WA...');
             const chats = await client.getChats();
-            console.log(`[DEBUG] Fetched ${ chats.length } raw chats.`);
+            console.log(`[DEBUG] Fetched ${chats.length} raw chats.`);
 
             // Mapeo enriquecido con hidratación de etiquetas
             const formattedChats = await Promise.all(chats.map(async chat => {
@@ -532,7 +530,7 @@ class WhatsAppService {
         const client = this.clients.get(userId);
         if (client) {
             try {
-                console.log(`Logging out client ${ userId }...`);
+                console.log(`Logging out client ${userId}...`);
                 await client.logout();
                 this.clients.delete(userId);
                 setTimeout(() => this.initializeClient(userId), 1000);
@@ -550,7 +548,7 @@ class WhatsAppService {
         if (!client) throw new Error('Client not initialized');
 
         // Formato seguro de Chat ID
-        const targetChatId = chatId.includes('@') ? chatId : `${ chatId.replace(/\D/g, '') } @c.us`;
+        const targetChatId = chatId.includes('@') ? chatId : `${chatId.replace(/\D/g, '')} @c.us`;
 
         // labelIds debe ser un array
         const labelsToProcess = Array.isArray(labelIds) ? labelIds : [labelIds];
@@ -609,7 +607,7 @@ class WhatsAppService {
 
             const chat = await client.getChatById(targetChatId);
             if (!chat) {
-                console.warn(`[Labels] Chat not found for ${ targetChatId } after update.Returning empty.`);
+                console.warn(`[Labels] Chat not found for ${targetChatId} after update.Returning empty.`);
                 return [];
             }
             return await chat.getLabels();
@@ -634,7 +632,7 @@ class WhatsAppService {
 startHealthCheck(userId) {
     if (this.healthCheckIntervals.has(userId)) return;
 
-    console.log(`[WA Service] Starting Health Check for ${ userId }`);
+    console.log(`[WA Service] Starting Health Check for ${userId}`);
     const interval = setInterval(async () => {
         const client = this.clients.get(userId);
         if (!client) {
@@ -652,11 +650,11 @@ startHealthCheck(userId) {
             const state = await Promise.race([statePromise, timeoutPromise]);
 
             if (state !== 'CONNECTED') {
-                console.warn(`[Health Check] User ${ userId } state is ${ state }. Restarting...`);
+                console.warn(`[Health Check] User ${userId} state is ${state}. Restarting...`);
                 this.restartClient(userId);
             }
         } catch (err) {
-            console.error(`[Health Check] Failed for ${ userId }(Err: ${ err.message }).Client might be zombie.Restarting...`);
+            console.error(`[Health Check] Failed for ${userId}(Err: ${err.message}).Client might be zombie.Restarting...`);
             this.restartClient(userId);
         }
     }, 5 * 60 * 1000); // Check every 5 minutes
@@ -672,7 +670,7 @@ stopHealthCheck(userId) {
 }
 
     async restartClient(userId) {
-    console.log(`[WA Service] Restarting client for ${ userId }...`);
+    console.log(`[WA Service] Restarting client for ${userId}...`);
     this.stopHealthCheck(userId);
 
     const client = this.clients.get(userId);
