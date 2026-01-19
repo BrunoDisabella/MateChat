@@ -627,61 +627,60 @@ class WhatsAppService {
             }
         }
     }
-}
 
-startHealthCheck(userId) {
-    if (this.healthCheckIntervals.has(userId)) return;
+    startHealthCheck(userId) {
+        if (this.healthCheckIntervals.has(userId)) return;
 
-    console.log(`[WA Service] Starting Health Check for ${userId}`);
-    const interval = setInterval(async () => {
-        const client = this.clients.get(userId);
-        if (!client) {
-            this.stopHealthCheck(userId);
-            return;
-        }
+        console.log(`[WA Service] Starting Health Check for ${userId}`);
+        const interval = setInterval(async () => {
+            const client = this.clients.get(userId);
+            if (!client) {
+                this.stopHealthCheck(userId);
+                return;
+            }
 
-        try {
-            // Race condition check: If getState takes too long, it's frozen
-            const statePromise = client.getState();
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Timeout')), 10000)
-            );
+            try {
+                // Race condition check: If getState takes too long, it's frozen
+                const statePromise = client.getState();
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Timeout')), 10000)
+                );
 
-            const state = await Promise.race([statePromise, timeoutPromise]);
+                const state = await Promise.race([statePromise, timeoutPromise]);
 
-            if (state !== 'CONNECTED') {
-                console.warn(`[Health Check] User ${userId} state is ${state}. Restarting...`);
+                if (state !== 'CONNECTED') {
+                    console.warn(`[Health Check] User ${userId} state is ${state}. Restarting...`);
+                    this.restartClient(userId);
+                }
+            } catch (err) {
+                console.error(`[Health Check] Failed for ${userId}(Err: ${err.message}).Client might be zombie.Restarting...`);
                 this.restartClient(userId);
             }
-        } catch (err) {
-            console.error(`[Health Check] Failed for ${userId}(Err: ${err.message}).Client might be zombie.Restarting...`);
-            this.restartClient(userId);
-        }
-    }, 5 * 60 * 1000); // Check every 5 minutes
+        }, 5 * 60 * 1000); // Check every 5 minutes
 
-    this.healthCheckIntervals.set(userId, interval);
-}
-
-stopHealthCheck(userId) {
-    if (this.healthCheckIntervals.has(userId)) {
-        clearInterval(this.healthCheckIntervals.get(userId));
-        this.healthCheckIntervals.delete(userId);
+        this.healthCheckIntervals.set(userId, interval);
     }
-}
+
+    stopHealthCheck(userId) {
+        if (this.healthCheckIntervals.has(userId)) {
+            clearInterval(this.healthCheckIntervals.get(userId));
+            this.healthCheckIntervals.delete(userId);
+        }
+    }
 
     async restartClient(userId) {
-    console.log(`[WA Service] Restarting client for ${userId}...`);
-    this.stopHealthCheck(userId);
+        console.log(`[WA Service] Restarting client for ${userId}...`);
+        this.stopHealthCheck(userId);
 
-    const client = this.clients.get(userId);
-    if (client) {
-        this.clients.delete(userId);
-        try { await client.destroy(); } catch (e) { }
+        const client = this.clients.get(userId);
+        if (client) {
+            this.clients.delete(userId);
+            try { await client.destroy(); } catch (e) { }
+        }
+
+        // Wait and re-init
+        setTimeout(() => this.initializeClient(userId), 5000);
     }
-
-    // Wait and re-init
-    setTimeout(() => this.initializeClient(userId), 5000);
-}
 }
 
 export const whatsappService = new WhatsAppService();
