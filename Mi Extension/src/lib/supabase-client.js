@@ -1,6 +1,18 @@
 // Importamos desde el archivo que descargaste en el Paso 1
-import { createClient } from './supabase-dist.js';
-import { ChromeStorageAdapter } from './storage-adapter.js';
+import * as SupabaseRaw from './supabase-dist.js';
+
+// Robust Import Strategy
+let createClient;
+if (SupabaseRaw.createClient) {
+  createClient = SupabaseRaw.createClient;
+} else if (SupabaseRaw.default && SupabaseRaw.default.createClient) {
+  createClient = SupabaseRaw.default.createClient;
+} else if (typeof self !== 'undefined' && self.supabase && self.supabase.createClient) {
+  createClient = self.supabase.createClient; // Global fallback
+} else {
+  console.error("CRITICAL: Could not find createClient in Supabase lib", SupabaseRaw);
+}
+
 
 // Credenciales de Supabase (Proyecto MateChat: oheapcbdvgmrmecgktak)
 const SUPABASE_URL = 'https://oheapcbdvgmrmecgktak.supabase.co';

@@ -2,34 +2,45 @@
   "manifest_version": 3,
   "name": "WPP CRM Fusion - Supabase Edition",
   "version": "3.1.0",
-  "permissions": ["storage", "identity", "unlimitedStorage"],
-  "host_permissions": ["https://web.whatsapp.com/*", "https://*.supabase.co/*"],
+  "permissions": [
+    "storage",
+    "identity",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "http://*/*",
+    "https://*/*"
+  ],
   "background": {
     "service_worker": "src/background.js",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["https://web.whatsapp.com/*"],
-      "js": ["src/content.js"],
+      "matches": [
+        "https://web.whatsapp.com/*"
+      ],
+      "js": [
+        "src/content.js"
+      ],
       "run_at": "document_end",
       "world": "ISOLATED"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["wppconnect-wa.js", "src/inject/wpp-bridge.js", "crm_logic.js"],
-      "matches": ["https://web.whatsapp.com/*"]
+      "resources": [
+        "wppconnect-wa.js",
+        "src/inject/wpp-bridge.js",
+        "crm_logic.js"
+      ],
+      "matches": [
+        "https://web.whatsapp.com/*"
+      ]
     }
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
-  },
-  "oauth2": {
-    "client_id": "600429712137-6f42bfih8o6vf1ha3dksjqm92u1jacig.apps.googleusercontent.com",
-    "scopes": [
-      "https://www.googleapis.com/auth/userinfo.email",
-      "https://www.googleapis.com/auth/userinfo.profile"
-    ]
   }
 }

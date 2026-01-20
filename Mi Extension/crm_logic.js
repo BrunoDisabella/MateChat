@@ -34,11 +34,11 @@ const ICONS = {
 let scheduledMessages = JSON.parse(localStorage.getItem('crm_scheduled_msgs') || '[]');
 let scheduledStatuses = JSON.parse(localStorage.getItem('crm_scheduled_statuses') || '[]');
 let scheduledBroadcasts = JSON.parse(localStorage.getItem('crm_scheduled_broadcasts') || '[]');
-let currentFilter = null; 
+let currentFilter = null;
 
 function saveMessages() {
     const toSave = scheduledMessages.map(m => {
-        const { file, ...rest } = m; 
+        const { file, ...rest } = m;
         return { ...rest, hasFile: !!file, fileName: file ? file.name : m.fileName };
     });
     localStorage.setItem('crm_scheduled_msgs', JSON.stringify(toSave));
@@ -67,17 +67,17 @@ class QuickReplySystem {
         this.STORAGE_KEY = 'crm_quick_replies_local';
         this.init();
     }
-    
-    init() { 
-        this.loadReplies(); 
-        this.injectStyles(); 
+
+    init() {
+        this.loadReplies();
+        this.injectStyles();
         // Usamos delegación de eventos en el documento para robustez
         document.addEventListener('keyup', (e) => this.globalKeyHandler(e));
         document.addEventListener('click', (e) => this.globalClickHandler(e));
     }
-    
+
     injectStyles() {
-        if(document.getElementById('crm-qr-styles')) return;
+        if (document.getElementById('crm-qr-styles')) return;
         const style = document.createElement('style');
         style.id = 'crm-qr-styles';
         style.textContent = `
@@ -94,19 +94,19 @@ class QuickReplySystem {
             .qr-badge { font-size: 10px; background: #e9edef; padding: 2px 5px; border-radius: 4px; margin-left: 5px; }
         `;
         document.head.appendChild(style);
-        
+
         // Crear contenedor único para el popup
         if (!document.getElementById('qr-popup-menu')) {
             const popup = document.createElement('div');
-            popup.id = 'qr-popup-menu'; 
+            popup.id = 'qr-popup-menu';
             popup.className = 'qr-popup';
-            document.body.appendChild(popup); 
+            document.body.appendChild(popup);
         }
     }
-    
+
     loadReplies() { const saved = localStorage.getItem(this.STORAGE_KEY); this.replies = saved ? JSON.parse(saved) : []; }
     saveReplies() { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.replies)); }
-    
+
     addReply(shortcut, message, imageData) {
         // Limpiamos # y / para guardar solo el comando puro
         const cleanShortcut = shortcut.replace('#', '').replace('/', '').toLowerCase();
@@ -114,13 +114,13 @@ class QuickReplySystem {
         this.saveReplies();
     }
     deleteReply(id) { this.replies = this.replies.filter(r => r.id !== id); this.saveReplies(); }
-    
+
     // Detecta la escritura globalmente en el input de WhatsApp
     globalKeyHandler(e) {
         const target = e.target;
         // Identificar el input de WhatsApp (contenteditable en el footer)
         const isChatInput = target.getAttribute('contenteditable') === 'true' && target.closest('#main footer');
-        
+
         if (!isChatInput) {
             this.hideMenu();
             return;
@@ -128,8 +128,8 @@ class QuickReplySystem {
 
         const text = target.innerText;
         // Regex para detectar #palabra
-        const match = text.match(/#([a-zA-Z0-9]*)$/); 
-        
+        const match = text.match(/#([a-zA-Z0-9]*)$/);
+
         if (match) {
             const query = match[1].toLowerCase();
             this.showMenu(query, target);
@@ -148,7 +148,7 @@ class QuickReplySystem {
     showMenu(query, inputElement) {
         const popup = document.getElementById('qr-popup-menu');
         const filtered = this.replies.filter(r => r.shortcut.startsWith(query));
-        
+
         if (!popup || filtered.length === 0) { this.hideMenu(); return; }
 
         popup.innerHTML = '';
@@ -161,27 +161,27 @@ class QuickReplySystem {
             `;
             // Mousedown previene que el input pierda foco antes de ejecutar la acción
             div.onmousedown = (e) => {
-                e.preventDefault(); 
+                e.preventDefault();
                 this.selectReply(r, inputElement, query);
             };
             popup.appendChild(div);
         });
-        
+
         const rect = inputElement.getBoundingClientRect();
         popup.style.display = 'block';
         popup.style.left = `${rect.left}px`;
         popup.style.bottom = `${window.innerHeight - rect.top + 10}px`;
     }
-    
+
     hideMenu() { const popup = document.getElementById('qr-popup-menu'); if (popup) popup.style.display = 'none'; }
-    
+
     async selectReply(reply, inputElement, queryStr) {
         this.hideMenu();
-        
+
         // Recuperar referencia segura al input
         let targetInput = inputElement;
         if (!targetInput.isConnected) targetInput = document.querySelector('div[contenteditable="true"][role="textbox"]');
-        if (!targetInput) return; 
+        if (!targetInput) return;
 
         targetInput.focus(); // Forzar foco
 
@@ -189,9 +189,9 @@ class QuickReplySystem {
             // Si hay imagen, borramos el comando y enviamos archivo
             document.execCommand('selectAll', false, null);
             document.execCommand('delete', false, null);
-            
+
             const chatId = await obtenerChatId();
-            if(chatId) {
+            if (chatId) {
                 await WPP.chat.sendFileMessage(chatId, reply.imageData, {
                     caption: reply.message,
                     filename: 'quick_reply.jpg'
@@ -201,27 +201,27 @@ class QuickReplySystem {
             // Si es texto, reemplazamos el comando
             const currentText = targetInput.innerText;
             const newText = currentText.replace(new RegExp(`#${queryStr}$`, 'i'), reply.message);
-            
+
             document.execCommand('selectAll', false, null);
             document.execCommand('insertText', false, newText);
         }
     }
-    
+
     openManager() {
         const overlay = document.createElement('div');
         overlay.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999999;display:flex;justify-content:center;align-items:center;font-family:inherit;`;
-        
+
         overlay.innerHTML = `
             <div style="background:white;width:400px;padding:20px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.2);">
                 <h3 style="margin-top:0;">⚡ Mensajes Rápidos (#)</h3>
                 <div style="max-height:200px;overflow-y:auto;border:1px solid #eee;margin-bottom:15px;">
                     ${this.replies.map(r => `
                         <div style="padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;">
-                            <div><b>#${r.shortcut}</b>: ${r.message.substring(0,20)}...</div>
+                            <div><b>#${r.shortcut}</b>: ${r.message.substring(0, 20)}...</div>
                             <span style="color:red;cursor:pointer;" id="del-qr-${r.id}">${ICONS.trash}</span>
                         </div>
                     `).join('')}
-                    ${this.replies.length===0 ? '<div style="padding:10px;text-align:center;color:#999">Sin mensajes.</div>' : ''}
+                    ${this.replies.length === 0 ? '<div style="padding:10px;text-align:center;color:#999">Sin mensajes.</div>' : ''}
                 </div>
                 
                 <label style="font-size:12px;color:#666;">Atajo (sin #):</label>
@@ -241,10 +241,10 @@ class QuickReplySystem {
         document.body.appendChild(overlay);
 
         document.getElementById('qr-close').onclick = () => overlay.remove();
-        
+
         this.replies.forEach(r => {
             document.getElementById(`del-qr-${r.id}`).onclick = () => {
-                if(confirm('¿Borrar?')) { this.deleteReply(r.id); overlay.remove(); this.openManager(); }
+                if (confirm('¿Borrar?')) { this.deleteReply(r.id); overlay.remove(); this.openManager(); }
             };
         });
 
@@ -254,7 +254,7 @@ class QuickReplySystem {
             const fileInput = document.getElementById('qr-input-file');
             const file = fileInput.files[0];
 
-            if(sc && msg) {
+            if (sc && msg) {
                 if (file) {
                     const reader = new FileReader();
                     reader.onload = (e) => {
@@ -302,13 +302,13 @@ function iniciarVigilante() {
             }
         }
         const chatId = await obtenerChatId();
-        if(chatId) renderScheduledMessageBubble(chatId);
+        if (chatId) renderScheduledMessageBubble(chatId);
     }, 800);
 
     iniciarVigilanteSidebar();
-    setInterval(checkScheduledTasks, 15000); 
-    setInterval(checkScheduledStatuses, 15000); 
-    setInterval(checkBroadcasts, 2000); 
+    setInterval(checkScheduledTasks, 15000);
+    setInterval(checkScheduledStatuses, 15000);
+    setInterval(checkBroadcasts, 2000);
 }
 
 // ==========================================
@@ -329,17 +329,17 @@ async function toggleLabelMenu(btnElement) {
 
         const getAllFn = labelModule.getAllLabels || labelModule.getAll;
         const allLabels = await getAllFn.call(labelModule);
-        
+
         let chatLabelIds = [];
         try {
             if (labelModule.getLabels) {
                 const l = await labelModule.getLabels(chatId);
-                chatLabelIds = l.map(x => x.id); 
+                chatLabelIds = l.map(x => x.id);
             } else {
                 const chat = WPP.chat.get(chatId);
                 if (chat && chat.labels) chatLabelIds = chat.labels;
             }
-        } catch(e) {}
+        } catch (e) { }
         btnElement.innerHTML = originalContent;
 
         const menu = document.createElement("div");
@@ -348,7 +348,7 @@ async function toggleLabelMenu(btnElement) {
         menu.style.cssText = `position: fixed; top: ${rect.bottom + 10}px; left: ${rect.left - 150}px; width: 280px; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 99999; padding: 10px 0; font-family: inherit; max-height: 400px; overflow-y: auto; border: 1px solid #e9edef; color: #111b21;`;
 
         menu.innerHTML = `<div style="padding: 8px 15px; font-size: 11px; font-weight: bold; color: #8696a0; border-bottom: 1px solid #f0f2f5; margin-bottom: 5px;">GESTIONAR ETIQUETAS</div>`;
-        if(!allLabels.length) menu.innerHTML += `<div style="padding:15px;text-align:center;">Sin etiquetas.</div>`;
+        if (!allLabels.length) menu.innerHTML += `<div style="padding:15px;text-align:center;">Sin etiquetas.</div>`;
 
         allLabels.forEach(label => {
             const isChecked = chatLabelIds.includes(label.id);
@@ -361,9 +361,9 @@ async function toggleLabelMenu(btnElement) {
                 <div style="width:18px; height:18px; border-radius:3px; border: 2px solid ${isChecked ? '#00a884' : '#d1d7db'}; background: ${isChecked ? '#00a884' : 'white'}; display:flex; align-items:center; justify-content:center;">${isChecked ? ICONS.check : ''}</div>
                 <div style="width:10px; height:10px; border-radius:50%; background:${label.hexColor}; flex-shrink:0;"></div>
                 <div style="flex:1;">${label.name}</div>
-                <div style="font-size: 11px; color: #8696a0; background: #f0f2f5; padding: 2px 6px; border-radius: 10px;">${label.count||0}</div>
+                <div style="font-size: 11px; color: #8696a0; background: #f0f2f5; padding: 2px 6px; border-radius: 10px;">${label.count || 0}</div>
             `;
-            
+
             row.onclick = async (e) => {
                 e.stopPropagation();
                 try {
@@ -375,20 +375,20 @@ async function toggleLabelMenu(btnElement) {
                         else if (isChecked && labelModule.removeLabels) await labelModule.removeLabels([label.id], [chatId]);
                     }
                     setTimeout(() => menu.remove(), 200);
-                } catch(err) {
+                } catch (err) {
                     try {
                         const Store = WPP.whatsapp.Store;
                         const labelModel = Store.Label.get(label.id);
                         const chatModel = Store.Chat.get(chatId);
                         await Store.Label.addOrRemoveLabels([labelModel], [chatModel]);
                         setTimeout(() => menu.remove(), 200);
-                    } catch(e2) { alert("Error asignando etiqueta."); }
+                    } catch (e2) { alert("Error asignando etiqueta."); }
                 }
             };
             menu.appendChild(row);
         });
         document.body.appendChild(menu);
-        setTimeout(() => { document.addEventListener('click', function close(e) { if (!menu.contains(e.target) && !btnElement.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); }}); }, 100);
+        setTimeout(() => { document.addEventListener('click', function close(e) { if (!menu.contains(e.target) && !btnElement.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); } }); }, 100);
     } catch (err) { alert("Error: " + err.message); btnElement.innerHTML = originalContent; }
 }
 
@@ -400,7 +400,7 @@ async function abrirModalEstados() {
     const overlay = document.createElement("div");
     overlay.id = "crm-status-modal";
     overlay.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999999;display:flex;justify-content:center;align-items:center;font-family:inherit;`;
-    
+
     overlay.innerHTML = `
         <div style="background:white;width:500px;height:600px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.2);display:flex;flex-direction:column;">
             <div style="padding:15px;background:#f0f2f5;display:flex;justify-content:space-between;"><h3>${ICONS.status} Estados</h3><div id="st-close" style="cursor:pointer;">✕</div></div>
@@ -412,7 +412,7 @@ async function abrirModalEstados() {
     const renderPending = () => {
         const div = document.getElementById('st-content');
         div.innerHTML = '';
-        scheduledStatuses.filter(s => s.status==='pending').forEach(st => {
+        scheduledStatuses.filter(s => s.status === 'pending').forEach(st => {
             const item = document.createElement('div');
             item.innerHTML = `<div style="border:1px solid #eee;padding:10px;margin-bottom:5px;display:flex;justify-content:space-between;"><div><b>${st.type}</b>: ${new Date(st.time).toLocaleString()}</div><div style="cursor:pointer;color:red;" onclick="deleteStatus(${st.id})">${ICONS.trash}</div></div>`;
             div.appendChild(item);
@@ -437,7 +437,7 @@ async function abrirModalEstados() {
             </div>
             <button id="st-save" style="width:100%;padding:10px;background:#00a884;color:white;border:none;">Guardar</button>
         `;
-        
+
         const radios = document.getElementsByName('st-type');
         radios.forEach(r => r.onchange = () => {
             document.getElementById('st-text-area').style.display = r.value === 'text' ? 'block' : 'none';
@@ -449,45 +449,45 @@ async function abrirModalEstados() {
             const type = document.querySelector('input[name="st-type"]:checked').value;
             const statusObj = { id: Date.now(), time, status: 'pending', type };
 
-            if(time <= Date.now()) return alert("Fecha futura requerida.");
+            if (time <= Date.now()) return alert("Fecha futura requerida.");
 
-            if(type === 'text') {
+            if (type === 'text') {
                 statusObj.content = document.getElementById('st-txt').value;
                 statusObj.backgroundColor = document.getElementById('st-color').value;
-                if(!statusObj.content) return alert("Escribe texto.");
+                if (!statusObj.content) return alert("Escribe texto.");
             } else {
                 const fileIn = document.getElementById('st-file');
-                if(!fileIn.files.length) return alert("Sube un archivo.");
-                statusObj.file = fileIn.files[0]; 
+                if (!fileIn.files.length) return alert("Sube un archivo.");
+                statusObj.file = fileIn.files[0];
                 statusObj.fileName = fileIn.files[0].name;
                 statusObj.caption = document.getElementById('st-caption').value;
             }
 
             scheduledStatuses.push(statusObj);
-            saveStatuses(); 
+            saveStatuses();
             renderPending();
             document.getElementById('tab-p').click();
         };
     };
 
     document.getElementById('st-close').onclick = () => overlay.remove();
-    document.getElementById('tab-p').onclick = () => { document.getElementById('tab-p').style.borderBottom='3px solid #00a884'; document.getElementById('tab-c').style.borderBottom='none'; renderPending(); };
-    document.getElementById('tab-c').onclick = () => { document.getElementById('tab-c').style.borderBottom='3px solid #00a884'; document.getElementById('tab-p').style.borderBottom='none'; renderCreate(); };
+    document.getElementById('tab-p').onclick = () => { document.getElementById('tab-p').style.borderBottom = '3px solid #00a884'; document.getElementById('tab-c').style.borderBottom = 'none'; renderPending(); };
+    document.getElementById('tab-c').onclick = () => { document.getElementById('tab-c').style.borderBottom = '3px solid #00a884'; document.getElementById('tab-p').style.borderBottom = 'none'; renderCreate(); };
     renderPending();
-    window.deleteStatus = (id) => { scheduledStatuses = scheduledStatuses.filter(s => s.id!==id); saveStatuses(); renderPending(); };
+    window.deleteStatus = (id) => { scheduledStatuses = scheduledStatuses.filter(s => s.id !== id); saveStatuses(); renderPending(); };
 }
 
 function checkScheduledStatuses() {
     const now = Date.now();
     scheduledStatuses.forEach(async st => {
-        if(st.status === 'pending' && st.time <= now) {
-            st.status = 'sent'; 
+        if (st.status === 'pending' && st.time <= now) {
+            st.status = 'sent';
             saveStatuses();
-            
-            try { 
-                if(st.type === 'text') {
-                    await WPP.status.sendTextStatus(st.content, { backgroundColor: st.backgroundColor, font: 1 }); 
-                } else if(st.file) {
+
+            try {
+                if (st.type === 'text') {
+                    await WPP.status.sendTextStatus(st.content, { backgroundColor: st.backgroundColor, font: 1 });
+                } else if (st.file) {
                     const reader = new FileReader();
                     reader.readAsDataURL(st.file);
                     reader.onloadend = async () => {
@@ -496,7 +496,7 @@ function checkScheduledStatuses() {
                         });
                     }
                 }
-            } catch(e){ console.error("Error Status:", e); }
+            } catch (e) { console.error("Error Status:", e); }
         }
     });
 }
@@ -509,13 +509,13 @@ async function abrirModalDifusion() {
     const overlay = document.createElement("div");
     overlay.id = "crm-broadcast-modal";
     overlay.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999999;display:flex;justify-content:center;align-items:center;font-family:inherit;`;
-    
+
     let options = `<option value="">Selecciona Etiqueta...</option>`;
     try {
         const lm = getLabelModule();
         const all = await (lm.getAllLabels || lm.getAll).call(lm);
-        all.forEach(l => options += `<option value="${l.id}">${l.name} (${l.count||0})</option>`);
-    } catch(e) {}
+        all.forEach(l => options += `<option value="${l.id}">${l.name} (${l.count || 0})</option>`);
+    } catch (e) { }
 
     overlay.innerHTML = `
         <div style="background:white;width:450px;padding:20px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.2);">
@@ -569,13 +569,13 @@ async function abrirModalDifusion() {
         const type = document.querySelector('input[name="bc-type"]:checked').value;
         const batchSize = parseInt(document.getElementById('bc-batch').value) || 5;
         const interval = parseInt(document.getElementById('bc-interval').value) || 60;
-        
-        if(!labelId) return alert("Selecciona una etiqueta.");
+
+        if (!labelId) return alert("Selecciona una etiqueta.");
 
         const chats = await WPP.chat.list();
         const targets = chats.filter(c => c.labels && c.labels.includes(labelId)).map(c => c.id._serialized);
-        
-        if(!targets.length) return alert("La etiqueta seleccionada no tiene contactos.");
+
+        if (!targets.length) return alert("La etiqueta seleccionada no tiene contactos.");
 
         const broadcastObj = {
             id: Date.now(),
@@ -588,13 +588,13 @@ async function abrirModalDifusion() {
             interval: interval * 1000 // Convertir a ms
         };
 
-        if(type === 'text') {
+        if (type === 'text') {
             const msg = document.getElementById('bc-msg').value;
-            if(!msg) return alert("Escribe un mensaje.");
+            if (!msg) return alert("Escribe un mensaje.");
             broadcastObj.message = msg;
         } else {
             const fileIn = document.getElementById('bc-file');
-            if(!fileIn.files.length) return alert("Selecciona un archivo.");
+            if (!fileIn.files.length) return alert("Selecciona un archivo.");
             broadcastObj.file = fileIn.files[0];
             broadcastObj.fileName = fileIn.files[0].name;
             broadcastObj.caption = document.getElementById('bc-caption').value;
@@ -611,27 +611,27 @@ async function checkBroadcasts() {
     const now = Date.now();
     for (let i = 0; i < scheduledBroadcasts.length; i++) {
         const b = scheduledBroadcasts[i];
-        
+
         if (b.status === 'processing' && now >= b.nextBatchTime) {
-            
+
             // Check completion
-            if (b.sentCount >= b.recipients.length) { 
-                b.status = 'completed'; 
-                saveBroadcasts(); 
-                continue; 
+            if (b.sentCount >= b.recipients.length) {
+                b.status = 'completed';
+                saveBroadcasts();
+                continue;
             }
-            
+
             // Lógica Anti-Spam: Enviar Lote
             const limit = b.batchSize || 5;
             const batch = b.recipients.slice(b.sentCount, b.sentCount + limit);
-            
+
             console.log(`📢 Enviando lote de ${batch.length} mensajes. Progreso: ${b.sentCount}/${b.recipients.length}`);
 
-            for(const chatId of batch) {
-                try { 
-                    if(b.type === 'text') {
-                        await WPP.chat.sendTextMessage(chatId, b.message); 
-                    } else if(b.file) {
+            for (const chatId of batch) {
+                try {
+                    if (b.type === 'text') {
+                        await WPP.chat.sendTextMessage(chatId, b.message);
+                    } else if (b.file) {
                         const reader = new FileReader();
                         reader.readAsDataURL(b.file);
                         await new Promise(resolve => {
@@ -645,10 +645,10 @@ async function checkBroadcasts() {
                         });
                     }
                     // Pequeña pausa humana entre mensajes del mismo lote
-                    await new Promise(r => setTimeout(r, Math.random() * 1500 + 500)); 
-                } catch(e){ console.error("Error Broadcast:", e); }
+                    await new Promise(r => setTimeout(r, Math.random() * 1500 + 500));
+                } catch (e) { console.error("Error Broadcast:", e); }
             }
-            
+
             b.sentCount += batch.length;
             b.nextBatchTime = now + (b.interval || 60000); // Esperar intervalo configurado
             saveBroadcasts();
@@ -672,7 +672,7 @@ async function abrirModalProgramacion(taskToEdit = null) {
     const overlay = document.createElement("div");
     overlay.id = "crm-schedule-modal";
     overlay.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999999;display:flex;justify-content:center;align-items:center;font-family:inherit;`;
-    
+
     overlay.innerHTML = `
         <div style="background:white;width:350px;padding:20px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.2);">
             <h3 style="margin-top:0;color:#111b21;">📅 Programar Mensaje</h3>
@@ -684,24 +684,24 @@ async function abrirModalProgramacion(taskToEdit = null) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(overlay);
     document.getElementById("crm-cancel").onclick = () => overlay.remove();
     document.getElementById("crm-save").onclick = () => {
         const dateVal = document.getElementById("crm-date").value;
         const msgVal = document.getElementById("crm-msg").value;
         if (!dateVal || !msgVal) return alert("Completa los campos.");
-        
+
         const time = new Date(dateVal).getTime();
         if (time <= Date.now()) return alert("Fecha futura requerida.");
 
         if (taskToEdit) scheduledMessages = scheduledMessages.filter(t => t.id !== taskToEdit.id);
-        
+
         const newTask = { id: taskToEdit ? taskToEdit.id : Date.now(), chatId, text: msgVal, time, status: 'pending', file: null };
         scheduledMessages.push(newTask);
         saveMessages();
-        
-        if(window.CRM_Supabase) window.CRM_Supabase.saveScheduledMessage(newTask);
+
+        if (window.CRM_Supabase) window.CRM_Supabase.saveScheduledMessage(newTask);
 
         overlay.remove();
         renderScheduledMessageBubble(chatId);
@@ -722,14 +722,14 @@ async function executeTask(task) {
         await WPP.chat.sendTextMessage(task.chatId, task.text);
         renderScheduledMessageBubble(task.chatId);
         actualizarIconosSidebar();
-    } catch(e) { console.error(e); }
+    } catch (e) { console.error(e); }
 }
 
 function renderScheduledMessageBubble(chatId) {
     const bubbleId = 'crm-scheduled-message-bubble';
     const existingBubble = document.getElementById(bubbleId);
     if (existingBubble) existingBubble.remove();
-    
+
     const nextMessage = scheduledMessages.filter(m => m.chatId === chatId && m.status === 'pending').sort((a, b) => a.time - b.time)[0];
     if (!nextMessage) return;
 
@@ -749,7 +749,7 @@ function renderScheduledMessageBubble(chatId) {
     `;
     header.insertAdjacentElement('afterend', bubble);
 }
-window.deleteScheduled = (id) => { scheduledMessages = scheduledMessages.filter(m => m.id !== id); saveMessages(); const b = document.getElementById('crm-scheduled-message-bubble'); if(b) b.remove(); actualizarIconosSidebar(); }
+window.deleteScheduled = (id) => { scheduledMessages = scheduledMessages.filter(m => m.id !== id); saveMessages(); const b = document.getElementById('crm-scheduled-message-bubble'); if (b) b.remove(); actualizarIconosSidebar(); }
 
 // ==========================================
 // 9. LOGICA DE FILTROS (PROGRAMADOS & ETIQUETAS)
@@ -764,7 +764,7 @@ async function toggleGlobalFilter(type, btnElement, extraData = null) {
     if (currentFilter === type) {
         currentFilter = null;
         const o = document.getElementById("crm-filter-overlay");
-        if(o) o.remove();
+        if (o) o.remove();
         return;
     }
 
@@ -798,7 +798,7 @@ async function toggleGlobalFilter(type, btnElement, extraData = null) {
 
 async function renderOverlay(paneSide, chatList, emptyMsg) {
     const existing = document.getElementById("crm-filter-overlay");
-    if(existing) existing.remove();
+    if (existing) existing.remove();
 
     const overlay = document.createElement("div");
     overlay.id = "crm-filter-overlay";
@@ -814,7 +814,7 @@ async function renderOverlay(paneSide, chatList, emptyMsg) {
             try {
                 let contact = await WPP.contact.get(chatId);
                 if (contact) chatName = contact.name || contact.formattedName || contact.pushname || chatName;
-            } catch(e) {}
+            } catch (e) { }
 
             const row = document.createElement("div");
             row.style.cssText = `display: flex; align-items: center; padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5;`;
@@ -843,19 +843,19 @@ async function showGlobalLabelDropdown(btnElement) {
     menu.id = "crm-global-label-menu";
     const rect = btnElement.getBoundingClientRect();
     menu.style.cssText = `position: fixed; top: ${rect.bottom + 5}px; left: ${rect.left - 50}px; width: 220px; background: white; padding: 8px 0; border-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 999999; max-height: 400px; overflow-y: auto; color:#111b21; font-family: inherit;`;
-    
+
     allLabels.forEach(l => {
         const div = document.createElement("div");
         div.style.cssText = "display:flex;align-items:center;padding:10px 20px;cursor:pointer;gap:10px;";
         div.onmouseenter = () => div.style.background = "#f5f6f6";
         div.onmouseleave = () => div.style.background = "transparent";
-        div.innerHTML = `<div style="width:10px;height:10px;border-radius:50%;background:${l.hexColor};"></div><span>${l.name} (${l.count||0})</span>`;
+        div.innerHTML = `<div style="width:10px;height:10px;border-radius:50%;background:${l.hexColor};"></div><span>${l.name} (${l.count || 0})</span>`;
         div.onclick = () => { menu.remove(); toggleGlobalFilter(`label:${l.id}`, btnElement, l); };
         menu.appendChild(div);
     });
 
     document.body.appendChild(menu);
-    setTimeout(() => { document.addEventListener('click', function c(e) { if(!menu.contains(e.target) && !btnElement.contains(e.target)) { menu.remove(); document.removeEventListener('click', c); }}); }, 100);
+    setTimeout(() => { document.addEventListener('click', function c(e) { if (!menu.contains(e.target) && !btnElement.contains(e.target)) { menu.remove(); document.removeEventListener('click', c); } }); }, 100);
 }
 
 // ==========================================
@@ -866,17 +866,18 @@ function injectTopToolbar() {
     const bar = document.createElement('div');
     bar.id = 'crm-top-bar';
     bar.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 45px; background: #ffffff; border-bottom: 1px solid #d1d7db; z-index: 999999; display: flex; align-items: center; justify-content: flex-end; padding: 0 16px; box-sizing: border-box; font-family: inherit; gap: 10px;`;
-    
+
     const mkBtn = (icon, text, click, id) => {
         const b = document.createElement("div");
-        if(id) b.id = id;
+        if (id) b.id = id;
         b.innerHTML = `${icon} <span style="margin-left:6px;font-size:14px;">${text}</span>`;
         b.style.cssText = "display:flex;align-items:center;padding:6px 12px;background:#e9edef;color:#54656f;border-radius:24px;cursor:pointer;border:1px solid #d1d7db;";
         b.onclick = click;
         return b;
     };
 
-    bar.appendChild(mkBtn(ICONS.cloud, "Conectar", () => window.CRM_Supabase && window.CRM_Supabase.login(), 'crm-btn-cloud'));
+    // Botón Conectar (Modificado para MateChat)
+    bar.appendChild(mkBtn(ICONS.cloud, "Configurar MateChat", () => abrirModalConfiguracion(), 'crm-btn-cloud'));
     bar.appendChild(mkBtn(ICONS.tag, "Etiquetas Generales", (e) => { e.stopPropagation(); showGlobalLabelDropdown(e.currentTarget); }, 'crm-btn-filter-tags'));
     bar.appendChild(mkBtn(ICONS.filter, "Programados", (e) => { e.stopPropagation(); toggleGlobalFilter('scheduled', e.currentTarget); }, 'crm-btn-filter-sched'));
     bar.appendChild(mkBtn(ICONS.status, "Estados", (e) => { e.stopPropagation(); abrirModalEstados(); }));
@@ -885,7 +886,7 @@ function injectTopToolbar() {
 
     document.body.prepend(bar);
     const app = document.getElementById('app');
-    if(app) { app.style.top = '45px'; app.style.height = 'calc(100% - 45px)'; }
+    if (app) { app.style.top = '45px'; app.style.height = 'calc(100% - 45px)'; }
 }
 
 function createButton(iconSvg, text) {
@@ -897,9 +898,9 @@ function createButton(iconSvg, text) {
 
 // Helpers WPP
 async function obtenerChatId() {
-    if (window.WPP && WPP.chat && WPP.chat.getActiveChat) { const c = WPP.chat.getActiveChat(); if(c && c.id) return c.id._serialized; }
-    try { if (WPP.whatsapp && WPP.whatsapp.Store && WPP.whatsapp.Store.Chat) { const c = WPP.whatsapp.Store.Chat.active(); if(c && c.id) return c.id._serialized; }} catch(e){}
-    try { const t = document.querySelector("#main header span[dir='auto']"); if(t) { const n = t.innerText; const l = await WPP.chat.list(); const f = l.find(x => x.name===n || x.formattedTitle===n); return f ? f.id._serialized : null; }} catch(e){}
+    if (window.WPP && WPP.chat && WPP.chat.getActiveChat) { const c = WPP.chat.getActiveChat(); if (c && c.id) return c.id._serialized; }
+    try { if (WPP.whatsapp && WPP.whatsapp.Store && WPP.whatsapp.Store.Chat) { const c = WPP.whatsapp.Store.Chat.active(); if (c && c.id) return c.id._serialized; } } catch (e) { }
+    try { const t = document.querySelector("#main header span[dir='auto']"); if (t) { const n = t.innerText; const l = await WPP.chat.list(); const f = l.find(x => x.name === n || x.formattedTitle === n); return f ? f.id._serialized : null; } } catch (e) { }
     return null;
 }
 function getLabelModule() { return WPP.labels || WPP.label || null; }
@@ -907,26 +908,149 @@ function getLabelModule() { return WPP.labels || WPP.label || null; }
 function iniciarVigilanteSidebar() {
     const check = setInterval(() => {
         const pane = document.getElementById("pane-side");
-        if(pane) { clearInterval(check); actualizarIconosSidebar(); new MutationObserver(actualizarIconosSidebar).observe(pane, {childList:true, subtree:true}); }
+        if (pane) { clearInterval(check); actualizarIconosSidebar(); new MutationObserver(actualizarIconosSidebar).observe(pane, { childList: true, subtree: true }); }
     }, 1000);
 }
 function actualizarIconosSidebar() {
     const pane = document.getElementById("pane-side");
-    if(!pane) return;
-    const chats = new Set(scheduledMessages.filter(m => m.status==='pending').map(m => m.chatId));
+    if (!pane) return;
+    const chats = new Set(scheduledMessages.filter(m => m.status === 'pending').map(m => m.chatId));
     pane.querySelectorAll('div[role="row"]').forEach(r => {
         const id = getChatIdFromRow(r);
-        if(id && chats.has(id)) {
-            if(!r.querySelector('#crm-sched-icon')) {
-                const s = document.createElement('span'); s.id='crm-sched-icon'; s.innerHTML=ICONS.clockYellow; s.style.cssText="position:absolute;top:25px;right:15px;z-index:999;"; r.style.position='relative'; r.appendChild(s);
+        if (id && chats.has(id)) {
+            if (!r.querySelector('#crm-sched-icon')) {
+                const s = document.createElement('span'); s.id = 'crm-sched-icon'; s.innerHTML = ICONS.clockYellow; s.style.cssText = "position:absolute;top:25px;right:15px;z-index:999;"; r.style.position = 'relative'; r.appendChild(s);
             }
-        } else { const i = r.querySelector('#crm-sched-icon'); if(i) i.remove(); }
+        } else { const i = r.querySelector('#crm-sched-icon'); if (i) i.remove(); }
     });
 }
 function getChatIdFromRow(node) {
-    try { const k = Object.keys(node).find(k=>k.startsWith("__reactFiber$")); let c=node[k]; while(c) { if(c.memoizedProps?.data?.id) return c.memoizedProps.data.id._serialized; c=c.return; }} catch(e){} return null;
+    try { const k = Object.keys(node).find(k => k.startsWith("__reactFiber$")); let c = node[k]; while (c) { if (c.memoizedProps?.data?.id) return c.memoizedProps.data.id._serialized; c = c.return; } } catch (e) { } return null;
 }
-function initSupabaseConnection() { window.addEventListener('message', (e) => { if(e.data?.action==='LOGIN_GOOGLE_RESPONSE' && e.data.payload.success) localStorage.setItem('crm_cloud_user', JSON.stringify(e.data.payload.user)); }); }
+function initSupabaseConnection() { window.addEventListener('message', (e) => { if (e.data?.action === 'LOGIN_GOOGLE_RESPONSE' && e.data.payload.success) localStorage.setItem('crm_cloud_user', JSON.stringify(e.data.payload.user)); }); }
 
 // ARRANQUE
+
 const arranque = setInterval(() => { if (window.WPP && window.WPP.isReady) { clearInterval(arranque); iniciarVigilante(); }}, 1000);
+
+
+// ==========================================
+// 10. MÓDULO: CONFIGURACIÓN MATECHAT
+// ==========================================
+async function abrirModalConfiguracion() {
+    if (document.getElementById("crm-config-modal")) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "crm-config-modal";
+    overlay.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999999;display:flex;justify-content:center;align-items:center;font-family:inherit;`;
+
+    overlay.innerHTML = `
+        <div style="background:white;width:400px;padding:25px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+            <h3 style="margin-top:0;color:#111b21;">⚙️ Conectar con MateChat</h3>
+            <p style="font-size:13px;color:#666;margin-bottom:20px;">
+                Conecta esta extensión con tu servidor MateChat para sincronizar mensajes programados y estados.
+            </p>
+
+            <label style="font-size:12px;color:#111b21;font-weight:bold;">URL del Servidor</label>
+            <input type="text" id="mc-url" placeholder="https://tu-servidor.com" value="https://matechat.losgurises.com.uy" style="width:100%;padding:10px;margin:5px 0 15px 0;border:1px solid #ccc;border-radius:6px;">
+
+            <label style="font-size:12px;color:#111b21;font-weight:bold;">API Key</label>
+            <input type="password" id="mc-key" placeholder="Pega tu API Key aquí..." style="width:100%;padding:10px;margin:5px 0 15px 0;border:1px solid #ccc;border-radius:6px;">
+
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+                <button id="mc-test" style="padding:8px 15px;background:#f0f2f5;border:1px solid #ddd;border-radius:6px;cursor:pointer;font-size:13px;">Test Conexión</button>
+                <span id="mc-status" style="font-size:12px;color:#666;"></span>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:10px;">
+                <button id="mc-cancel" style="padding:10px 20px;border:none;background:#f0f2f5;border-radius:20px;cursor:pointer;">Cancelar</button>
+                <button id="mc-save" style="padding:10px 20px;border:none;background:#00a884;color:white;border-radius:20px;cursor:pointer;">Guardar y Conectar</button>
+            </div>
+            
+            <div style="margin-top:15px;padding-top:15px;border-top:1px solid #eee;font-size:11px;color:#888;text-align:center;">
+                Powered by MateChat API
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Precargar configuración actual
+    window.addEventListener('message', function handler(e) {
+        if (e.data.source === 'CRM_FUSION_EXTENSION' && e.data.action === 'GET_MATECHAT_CONFIG_RESPONSE') {
+            const config = e.data.payload.config;
+            if (config) {
+                if (config.serverUrl) document.getElementById('mc-url').value = config.serverUrl;
+                if (config.hasApiKey) document.getElementById('mc-key').placeholder = "******** (Oculta)";
+            }
+            window.removeEventListener('message', handler);
+        }
+    });
+    window.CRM_Supabase.getMateChatConfig(); // Solicitar config
+
+    // Listeners
+    document.getElementById("mc-cancel").onclick = () => overlay.remove();
+
+    document.getElementById("mc-test").onclick = async () => {
+        const statusSpan = document.getElementById("mc-status");
+        statusSpan.innerText = "Probando...";
+        statusSpan.style.color = "#666";
+
+        // Temporaly save to test? Or just send raw request via bridge? 
+        // Bridge `testMateChatConnection` uses stored config, so we explicitly save first temporarily or add a raw test param.
+        // For simplicity, we trigger the bridge test which relies on SAVED config. 
+        // Better UX: Save params first then test.
+
+        const url = document.getElementById('mc-url').value;
+        const key = document.getElementById('mc-key').value;
+
+        if (!url || (!key && document.getElementById('mc-key').placeholder.indexOf('*') === -1)) {
+            statusSpan.innerText = "Faltan datos."; statusSpan.style.color = "red"; return;
+        }
+
+        // Save locally first to test
+        const enabled = true;
+        window.CRM_Supabase.saveMateChatConfig({ serverUrl: url, apiKey: key, enabled });
+
+        setTimeout(() => {
+            window.CRM_Supabase.testMateChatConnection();
+        }, 500);
+    };
+
+    // Listen for Test Result
+    window.addEventListener('message', function testHandler(e) {
+        if (e.data.source === 'CRM_FUSION_EXTENSION' && e.data.action === 'TEST_MATECHAT_CONNECTION_RESPONSE') {
+            const res = e.data.payload;
+            const statusSpan = document.getElementById("mc-status");
+            if (statusSpan) {
+                if (res.success) {
+                    statusSpan.innerText = "✅ Conectado";
+                    statusSpan.style.color = "#00a884";
+                } else {
+                    statusSpan.innerText = "❌ Error: " + (res.error || 'Falló');
+                    statusSpan.style.color = "red";
+                }
+            }
+            // Don't remove listener aggressively to allow re-tests
+        }
+    });
+
+    document.getElementById("mc-save").onclick = () => {
+        const url = document.getElementById('mc-url').value;
+        const key = document.getElementById('mc-key').value;
+
+        // Si el key está vacío pero tiene placeholder de oculto, no lo sobreescribimos (o enviamos vacío y el back lo maneja)
+        // Background logic: `if (changes.matechat_apikey)`. Sending empty string might clear it.
+        // Simple logic: if empty, assume no change if checking against mask. But here we just save.
+
+        window.CRM_Supabase.saveMateChatConfig({
+            serverUrl: url,
+            apiKey: key,
+            enabled: true
+        });
+
+        alert("Configuración guardada.");
+        overlay.remove();
+        actualizarIconosSidebar(); // Refrescar estado visual si hubiera
+    };
+}

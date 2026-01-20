@@ -5,10 +5,16 @@ import * as labelsController from '../controllers/labels.controller.js';
 import * as messageController from '../controllers/message.controller.js';
 import * as testController from '../controllers/test.controller.js';
 import * as scheduleController from '../controllers/schedule.controller.js';
+import * as statusController from '../controllers/status.controller.js';
 
 const router = express.Router();
 
 router.use(authenticateApiKeyOnly);
+
+// Status & Health (NUEVO)
+router.get('/status', statusController.getStatus);
+router.get('/health', statusController.healthCheck);
+router.post('/restart', statusController.forceRestart);
 
 // Debug
 router.post('/debug/test-webhook', testController.triggerTestWebhook);

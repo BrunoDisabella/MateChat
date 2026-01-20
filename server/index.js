@@ -53,12 +53,45 @@ whatsappService.restoreSessions(); // Restore persisted sessions on boot
 schedulerService.initialize();
 schedulerService.start();
 
+// NUEVO: Status logging periódico para monitoreo
+const STATUS_LOG_INTERVAL = 10 * 60 * 1000; // Cada 10 minutos
+setInterval(() => {
+    const stats = whatsappService.getStats();
+    const memUsage = process.memoryUsage();
+    const uptime = Math.floor(process.uptime() / 60);
+
+    console.log(`\n📊 [STATUS REPORT - ${new Date().toLocaleString()}]`);
+    console.log(`   ⏱️  Uptime: ${uptime} minutes`);
+    console.log(`   💾 Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB / ${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`);
+    console.log(`   📱 WhatsApp Clients: ${stats.totalClients}`);
+    if (stats.clients.length > 0) {
+        stats.clients.forEach(c => {
+            console.log(`      - ${c.userId}: ${c.state} (Health: ${c.hasHealthCheck ? '✅' : '❌'}, KeepAlive: ${c.hasKeepAlive ? '✅' : '❌'})`);
+        });
+    }
+    console.log('');
+}, STATUS_LOG_INTERVAL);
+
 // Start Server
 server.listen(config.port, () => {
     console.log(`
-    🚀 Server running on port ${config.port}
-    - API: /api
-    - Webhook Target: ${config.n8nWebhookUrl || 'Not configured'}
+    ╔══════════════════════════════════════════════════════╗
+    ║                                                      ║
+    ║   🚀 MateChat Server v2.0 (Keep-Alive Edition)       ║
+    ║                                                      ║
+    ╠══════════════════════════════════════════════════════╣
+    ║   Port: ${config.port}                                        ║
+    ║   API:  /api                                         ║
+    ║   Health: /api/health                                ║
+    ║   Status: /api/status                                ║
+    ╠══════════════════════════════════════════════════════╣
+    ║   Improvements:                                      ║
+    ║   ✅ Keep-Alive (every 3 min)                        ║
+    ║   ✅ Robust Health Check (every 5 min)               ║
+    ║   ✅ change_state event handling                     ║
+    ║   ✅ Puppeteer stability flags                       ║
+    ║   ✅ Detached frame detection                        ║
+    ╚══════════════════════════════════════════════════════╝
     `);
 });
 
@@ -66,3 +99,37 @@ server.listen(config.port, () => {
 server.keepAliveTimeout = 65000; // Ensure it's larger than load balancer timeout
 server.headersTimeout = 66000;
 server.requestTimeout = 0; // Disable default timeout for testing
+
+// NUEVO: Graceful shutdown
+process.on('SIGINT', async () => {
+    console.log('\n🛑 Shutting down gracefully...');
+
+    // Stop scheduler
+    schedulerService.stop();
+
+    // Get all active clients and destroy them
+    const stats = whatsappService.getStats();
+    for (const client of stats.clients) {
+        console.log(`   Destroying client ${client.userId}...`);
+        try {
+            await whatsappService.restartClient(client.userId);
+        } catch (e) {
+            console.error(`   Failed to destroy ${client.userId}:`, e.message);
+        }
+    }
+
+    server.close(() => {
+        console.log('✅ Server closed. Goodbye!');
+        process.exit(0);
+    });
+
+    // Force exit after 10 seconds
+    setTimeout(() => {
+        console.log('⚠️ Force exit after timeout');
+        process.exit(1);
+    }, 10000);
+});
+
+process.on('SIGTERM', () => {
+    process.emit('SIGINT');
+});

@@ -6,31 +6,20 @@ import { settingsService } from './settings.service.js';
 import fs from 'fs';
 import path from 'path';
 
-/**
- * WhatsApp Service - Versión mejorada con Keep-Alive y Health Check robusto
- * 
- * Mejoras implementadas:
- * - Keep-Alive activo para mantener sesión viva
- * - Health Check robusto que detecta frames detached
- * - Manejo de evento change_state
- * - Flags de Puppeteer para estabilidad a largo plazo
- * - Logging mejorado para diagnóstico
- */
 class WhatsAppService {
     constructor() {
         this.clients = new Map();
-        this.eventHandlers = new Map();
-        this.healthCheckIntervals = new Map();
-        this.keepAliveIntervals = new Map(); // NUEVO: Intervalos de keep-alive
-        this.explicitLogouts = new Set();
-        this.clientStates = new Map(); // NUEVO: Track estado real de cada cliente
-        settingsService.initialize();
+        this.eventHandlers = new Map(); // Para comunicar eventos al SocketService sin dependencia circular directa
+        this.healthCheckIntervals = new Map(); // Intervalos de health check por usuario
+        this.explicitLogouts = new Set(); // Track intentional logouts
+        settingsService.initialize(); // Asegurar inicialización de servicio de settings
     }
 
     /**
      * Restore previous sessions from disk
      */
     async restoreSessions() {
+        // Small delay to allow server to bind port first
         setTimeout(async () => {
             const authPath = path.resolve(process.cwd(), '.wwebjs_auth_v2');
 
@@ -47,6 +36,8 @@ class WhatsAppService {
                 console.log(`[WA Service - Restore] Found ${sessionFolders.length} sessions to restore.`);
 
                 for (const dirent of sessionFolders) {
+                    // Folder name is "session-<clientId>"
+                    // We need to extract <clientId> which is our userId
                     const folderName = dirent.name;
                     const userId = folderName.replace('session-', '');
 
@@ -57,13 +48,14 @@ class WhatsAppService {
                         } catch (err) {
                             console.error(`[WA Service - Restore] Failed to restore ${userId}:`, err);
                         }
+                        // Stagger restorations to avoid CPU spike
                         await new Promise(r => setTimeout(r, 2000));
                     }
                 }
             } catch (error) {
                 console.error('[WA Service - Restore] Error scanning auth directory:', error);
             }
-        }, 1000);
+        }, 1000); // 1 sec delay after server boot
     }
 
     on(event, callback) {
@@ -90,7 +82,6 @@ class WhatsAppService {
 
         console.log(`[WA Service] Initializing NEW WhatsApp client for ${userId}...`);
         this.emit('status_change', { status: 'INITIALIZING', userId });
-        this.clientStates.set(userId, 'INITIALIZING');
 
         const client = new Client({
             authStrategy: new LocalAuth({
@@ -104,22 +95,10 @@ class WhatsAppService {
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
                     '--disable-gpu',
-                    '--disable-software-rasterizer',
-                    // NUEVOS FLAGS DE ESTABILIDAD:
-                    '--disable-features=IsolateOrigins,site-per-process',
-                    '--disable-site-isolation-trials',
-                    '--single-process',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding',
-                    // Evitar throttling de CPU en background
-                    '--disable-hang-monitor',
-                    '--disable-ipc-flooding-protection',
-                    // Más memoria para operaciones largas
-                    '--js-flags=--max-old-space-size=512'
+                    '--disable-software-rasterizer'
                 ]
             },
-            // Fix para versiones recientes de WhatsApp Web
+            // Fix for 'markedUnread' error: Force a compatible WA Web version
             // webVersionCache: {
             //     type: 'remote',
             //     remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
@@ -128,12 +107,12 @@ class WhatsAppService {
 
         this.setupClientListeners(client, userId);
 
+        // Asynchronous processing to prevent hanging
         client.initialize().then(() => {
             console.log(`[WA Service] Client initialize promise resolved for ${userId}`);
         }).catch(err => {
             console.error(`[WA Service] Client initialize REJECTED for ${userId}:`, err);
             this.emit('status_change', { status: 'ERROR', userId });
-            this.clientStates.set(userId, 'ERROR');
             this.clients.delete(userId);
         });
 
@@ -144,44 +123,27 @@ class WhatsAppService {
     setupClientListeners(client, userId) {
         client.on('qr', (qr) => {
             console.log(`[WA Service] QR RECEIVED for ${userId}`);
-            this.clientStates.set(userId, 'QR_RECEIVED');
             this.emit('qr', { qr, userId });
         });
 
         client.on('ready', () => {
-            console.log(`[WA Service] ✅ Client ${userId} is READY!`);
-            this.clientStates.set(userId, 'READY');
+            console.log(`[WA Service] Client ${userId} is READY!`);
             this.emit('ready', { userId });
             this.startHealthCheck(userId);
-            this.startKeepAlive(userId); // NUEVO: Iniciar keep-alive
         });
 
         client.on('authenticated', () => {
-            console.log(`[WA Service] 🔐 Client ${userId} AUTHENTICATED`);
-            this.clientStates.set(userId, 'AUTHENTICATED');
+            console.log(`[WA Service] Client ${userId} AUTHENTICATED`);
             this.emit('authenticated', { userId });
         });
 
         client.on('auth_failure', (msg) => {
-            console.error(`[WA Service] ❌ AUTH FAILURE for ${userId}:`, msg);
-            this.clientStates.set(userId, 'AUTH_FAILURE');
+            console.error(`[WA Service] AUTH FAILURE for ${userId}:`, msg);
             this.emit('auth_failure', { msg, userId });
         });
 
-        // NUEVO: Escuchar cambios de estado de conexión
-        client.on('change_state', (state) => {
-            console.log(`[WA Service] 🔄 State changed for ${userId}: ${state}`);
-            this.clientStates.set(userId, state);
-
-            // Estados que requieren reconexión
-            const reconnectStates = ['CONFLICT', 'UNPAIRED', 'UNLAUNCHED', 'TIMEOUT'];
-            if (reconnectStates.includes(state)) {
-                console.warn(`[WA Service] ⚠️ Detected problematic state ${state} for ${userId}. Triggering restart...`);
-                this.restartClient(userId);
-            }
-        });
-
         client.on('message', async (msg) => {
+            // console.log(`[WA Service] Message for ${userId}:`, msg.body.substring(0, 50));
             this.handleWebhook(userId, msg, 'message');
             this.emit('message', { msg, userId });
         });
@@ -193,12 +155,10 @@ class WhatsAppService {
         });
 
         client.on('disconnected', async (reason) => {
-            console.log(`[WA Service] ⚠️ Client ${userId} DISCONNECTED:`, reason);
-            this.clientStates.set(userId, 'DISCONNECTED');
+            console.log(`[WA Service] Client ${userId} DISCONNECTED:`, reason);
             this.emit('disconnected', { reason, userId });
 
             this.stopHealthCheck(userId);
-            this.stopKeepAlive(userId); // NUEVO: Detener keep-alive
             this.clients.delete(userId);
 
             try {
@@ -209,7 +169,7 @@ class WhatsAppService {
 
             // Auto-reconnect if not explicit logout
             if (!this.explicitLogouts.has(userId)) {
-                console.log(`[WA Service] 🔄 Detected accidental disconnect for ${userId}. Reconnecting in 5s...`);
+                console.log(`[WA Service] Detected accidental disconnect for ${userId}. Reconnecting in 5s...`);
                 setTimeout(() => {
                     this.initializeClient(userId);
                 }, 5000);
@@ -220,130 +180,6 @@ class WhatsAppService {
         });
     }
 
-    /**
-     * NUEVO: Keep-Alive - Mantiene la sesión activa enviando presencia periódicamente
-     */
-    startKeepAlive(userId) {
-        if (this.keepAliveIntervals.has(userId)) return;
-
-        console.log(`[WA Service] 💓 Starting Keep-Alive for ${userId}`);
-
-        const interval = setInterval(async () => {
-            const client = this.clients.get(userId);
-            if (!client) {
-                this.stopKeepAlive(userId);
-                return;
-            }
-
-            try {
-                // Enviar presencia "disponible" - esto mantiene la conexión viva
-                await client.sendPresenceAvailable();
-                console.log(`[Keep-Alive] 💚 Ping sent for ${userId} at ${new Date().toLocaleTimeString()}`);
-            } catch (err) {
-                console.error(`[Keep-Alive] ❌ Failed for ${userId}:`, err.message);
-                // Si falla el keep-alive, intentar restart
-                this.restartClient(userId);
-            }
-        }, 3 * 60 * 1000); // Cada 3 minutos
-
-        this.keepAliveIntervals.set(userId, interval);
-    }
-
-    stopKeepAlive(userId) {
-        if (this.keepAliveIntervals.has(userId)) {
-            clearInterval(this.keepAliveIntervals.get(userId));
-            this.keepAliveIntervals.delete(userId);
-            console.log(`[WA Service] 💔 Keep-Alive stopped for ${userId}`);
-        }
-    }
-
-    /**
-     * MEJORADO: Health Check robusto que detecta frames detached
-     */
-    startHealthCheck(userId) {
-        if (this.healthCheckIntervals.has(userId)) return;
-
-        console.log(`[WA Service] 🏥 Starting Health Check for ${userId}`);
-
-        const interval = setInterval(async () => {
-            const client = this.clients.get(userId);
-            if (!client) {
-                this.stopHealthCheck(userId);
-                return;
-            }
-
-            try {
-                // MEJORADO: Verificación en múltiples niveles
-
-                // Nivel 1: Verificar que el cliente existe y tiene página
-                if (!client.pupPage) {
-                    throw new Error('Puppeteer page not available');
-                }
-
-                // Nivel 2: Verificar que el frame no está detached (CRÍTICO)
-                const frameCheckPromise = client.pupPage.evaluate(() => {
-                    return window.Store !== undefined;
-                });
-
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Frame Timeout - Possible detach')), 10000)
-                );
-
-                await Promise.race([frameCheckPromise, timeoutPromise]);
-
-                // Nivel 3: Verificar estado real de WhatsApp
-                const statePromise = client.getState();
-                const stateTimeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('State Timeout')), 10000)
-                );
-
-                const state = await Promise.race([statePromise, stateTimeoutPromise]);
-
-                if (state !== 'CONNECTED') {
-                    console.warn(`[Health Check] ⚠️ User ${userId} state is ${state}. Restarting...`);
-                    this.restartClient(userId);
-                } else {
-                    console.log(`[Health Check] ✅ ${userId} healthy at ${new Date().toLocaleTimeString()}`);
-                }
-
-            } catch (err) {
-                console.error(`[Health Check] ❌ Failed for ${userId} (Err: ${err.message}). Client might be zombie. Restarting...`);
-                this.restartClient(userId);
-            }
-        }, 5 * 60 * 1000); // Check every 5 minutes
-
-        this.healthCheckIntervals.set(userId, interval);
-    }
-
-    stopHealthCheck(userId) {
-        if (this.healthCheckIntervals.has(userId)) {
-            clearInterval(this.healthCheckIntervals.get(userId));
-            this.healthCheckIntervals.delete(userId);
-            console.log(`[WA Service] 🏥 Health Check stopped for ${userId}`);
-        }
-    }
-
-    async restartClient(userId) {
-        console.log(`[WA Service] 🔄 Restarting client for ${userId}...`);
-        this.stopHealthCheck(userId);
-        this.stopKeepAlive(userId);
-
-        const client = this.clients.get(userId);
-        if (client) {
-            this.clients.delete(userId);
-            try {
-                await client.destroy();
-                console.log(`[WA Service] 💀 Old client destroyed for ${userId}`);
-            } catch (e) {
-                console.error(`[WA Service] Error destroying old client:`, e.message);
-            }
-        }
-
-        // Wait and re-init
-        console.log(`[WA Service] ⏳ Waiting 5s before re-initializing ${userId}...`);
-        setTimeout(() => this.initializeClient(userId), 5000);
-    }
-
     async logout(userId) {
         if (!userId) {
             console.error('[WA Service] Logout requested without userId');
@@ -352,16 +188,17 @@ class WhatsAppService {
 
         const client = this.clients.get(userId);
         if (client) {
-            console.log(`[WA Service] 🚪 Logging out client ${userId}...`);
-            this.explicitLogouts.add(userId);
+            console.log(`[WA Service] Logging out client ${userId}...`);
+            this.explicitLogouts.add(userId); // Mark as intentional
             this.stopHealthCheck(userId);
-            this.stopKeepAlive(userId);
-
             try {
+                // Logout oficial
                 await client.logout();
-                console.log(`[WA Service] ✅ Logout successful for ${userId}`);
+                console.log(`[WA Service] Logout successful for ${userId}`);
             } catch (error) {
                 console.error(`[WA Service] Error logging out client ${userId}:`, error);
+
+                // Fallback: destrucción forzada si el navegador está colgado
                 try {
                     console.log(`[WA Service] Forcing destroy for ${userId}...`);
                     await client.destroy();
@@ -370,8 +207,9 @@ class WhatsAppService {
                 }
             } finally {
                 this.clients.delete(userId);
-                this.clientStates.set(userId, 'LOGGED_OUT');
 
+                // Reiniciar cliente automáticamente después de un breve delay
+                // para que el usuario pueda volver a escanear inmediatamente
                 setTimeout(() => {
                     console.log(`[WA Service] Restarting client for ${userId} to show QR...`);
                     this.initializeClient(userId);
@@ -379,43 +217,14 @@ class WhatsAppService {
             }
         } else {
             console.warn(`[WA Service] No active client found for logout ${userId}`);
+            // Si no hay cliente activo, intentamos inicializar uno nuevo por si acaso quedó en el limbo
             this.initializeClient(userId);
         }
     }
 
-    /**
-     * NUEVO: Obtener estado de un cliente
-     */
-    getClientState(userId) {
-        return this.clientStates.get(userId) || 'UNKNOWN';
-    }
-
-    /**
-     * NUEVO: Obtener estadísticas de todos los clientes
-     */
-    getStats() {
-        const stats = {
-            totalClients: this.clients.size,
-            states: {},
-            clients: []
-        };
-
-        for (const [userId, client] of this.clients) {
-            const state = this.clientStates.get(userId) || 'UNKNOWN';
-            stats.states[state] = (stats.states[state] || 0) + 1;
-            stats.clients.push({
-                userId,
-                state,
-                hasHealthCheck: this.healthCheckIntervals.has(userId),
-                hasKeepAlive: this.keepAliveIntervals.has(userId)
-            });
-        }
-
-        return stats;
-    }
-
     async handleWebhook(userId, msg, eventType = 'message') {
         try {
+            // Recuperar configuración de usuario desde Supabase
             const settings = await settingsService.getUserSettings(userId);
             let webhooks = settings?.webhooks || [];
 
@@ -423,6 +232,7 @@ class WhatsAppService {
                 return;
             }
 
+            // Prepare Legacy Payload
             let legacyEvent = 'message.received';
             if (eventType === 'message_create' && msg.fromMe) {
                 legacyEvent = 'message.sent';
@@ -431,8 +241,10 @@ class WhatsAppService {
             const chat = await msg.getChat();
             const contact = await msg.getContact();
 
+            // Format Timestamp to ISO
             const isoTimestamp = new Date(msg.timestamp * 1000).toISOString();
 
+            // Get Labels/Tags
             let labels = [];
             try {
                 const fetchedLabels = await chat.getLabels();
@@ -447,8 +259,10 @@ class WhatsAppService {
                 // Ignore label fetch errors
             }
 
+            // Extraer número de teléfono limpio del chatId
             const extractPhoneNumber = (waId) => {
                 if (!waId) return null;
+                // Formato: "5491123456789@c.us" → "5491123456789"
                 const match = waId.match(/^(\d+)@/);
                 return match ? match[1] : waId.replace(/@.*$/, '');
             };
@@ -457,9 +271,12 @@ class WhatsAppService {
             const recipientPhone = extractPhoneNumber(msg.to);
             const chatPhone = extractPhoneNumber(chat.id._serialized);
 
+            // FIX: Force chatId to be phone-number based (@c.us) for private chats
+            // Recent WA updates use @lid for some IDs. We must resolve the real phone number.
             let finalChatId = chat.id._serialized;
-            let finalChatPhone = chatPhone;
+            let finalChatPhone = chatPhone; // Default to regex extraction
 
+            // Resolve accurate phone number for private chats
             if (!chat.isGroup) {
                 try {
                     const chatContact = await chat.getContact();
@@ -472,6 +289,7 @@ class WhatsAppService {
                 }
             }
 
+            // Correction for phone fields in payload
             const finalSenderPhone = msg.fromMe ? extractPhoneNumber(msg.from) : finalChatPhone;
             const finalRecipientPhone = msg.fromMe ? finalChatPhone : extractPhoneNumber(msg.to);
 
@@ -483,6 +301,7 @@ class WhatsAppService {
                     body: msg.body,
                     from: msg.from,
                     to: msg.to,
+                    // Phone numbers aligned with corrected Chat ID
                     phone: msg.fromMe ? finalRecipientPhone : finalSenderPhone,
                     senderPhone: finalSenderPhone,
                     recipientPhone: finalRecipientPhone,
@@ -496,8 +315,10 @@ class WhatsAppService {
                     author: msg.author || msg.from,
                     pushname: contact?.pushname || contact?.name || contact?.number,
                     labels: labels,
+                    // Información de contacto enriquecida
                     contact: {
                         name: contact?.pushname || contact?.name || null,
+                        // Fix contact phone in payload if it refers to the client
                         phone: !msg.fromMe ? finalChatPhone : senderPhone,
                         number: !msg.fromMe ? finalChatPhone : (contact?.number || senderPhone),
                         hasLabels: labels.length > 0,
@@ -506,10 +327,12 @@ class WhatsAppService {
                 }
             };
 
+            // Send to compatible webhooks
             console.log(`[Webhook] Processing ${legacyEvent} for ${webhooks.length} hooks`);
 
             webhooks.forEach(async (hook) => {
                 const hookEvents = hook.events || [];
+                // Compatibility check: 'message' matches 'message.received', 'message_create' matches 'message.sent'
                 let shouldSend = false;
                 if (legacyEvent === 'message.received' && hookEvents.includes('message')) shouldSend = true;
                 if (legacyEvent === 'message.sent' && hookEvents.includes('message_create')) shouldSend = true;
@@ -517,10 +340,10 @@ class WhatsAppService {
                 if (!shouldSend) return;
 
                 try {
-                    console.log(`[Webhook] Sending to ${hook.url}`);
-                    await axios.post(hook.url, payload, { timeout: 10000 });
+                    console.log(`[Webhook] Sending to ${hook.url} `);
+                    await axios.post(hook.url, payload);
                 } catch (err) {
-                    console.error(`[Webhook] Failed to send to ${hook.url}:`, err.message);
+                    console.error(`[Webhook] Failed to send to ${hook.url}: `, err.message);
                 }
             });
 
@@ -538,9 +361,10 @@ class WhatsAppService {
         if (!client) return [];
 
         try {
+            // Obtener objeto chat
             const chat = await client.getChatById(chatId);
             if (!chat) {
-                console.warn(`[DEBUG] Chat not found for ID: ${chatId}`);
+                console.warn(`[DEBUG] Chat not found for ID: ${chatId} `);
                 return [];
             }
 
@@ -553,7 +377,15 @@ class WhatsAppService {
 
             const messages = await chat.fetchMessages(options);
 
+            // Mapear mensajes al formato del frontend
             return messages.map(msg => {
+                // Determinar tipo de medio y datos
+                let mediaUrl = null; // En producción, esto debería ser una URL pública o base64
+                // Por ahora, manejamos base64 si ya viene (raro en fetchMessages histórico sin download)
+                // OJO: fetchMessages histórico NO descarga medios automáticamente.
+                // Habría que hacer msg.downloadMedia() bajo demanda. 
+                // Para MVP, solo devolvemos metadatos de medio.
+
                 return {
                     id: msg.id._serialized,
                     fromMe: msg.fromMe,
@@ -561,6 +393,7 @@ class WhatsAppService {
                     type: msg.type,
                     timestamp: msg.timestamp,
                     hasMedia: msg.hasMedia,
+                    // Si necesitamos media, iría aqui. Por ahora simplificado.
                     media: msg.hasMedia ? { mimetype: 'unknown' } : undefined
                 };
             });
@@ -580,9 +413,11 @@ class WhatsAppService {
             const chats = await client.getChats();
             console.log(`[DEBUG] Fetched ${chats.length} raw chats.`);
 
+            // Mapeo enriquecido con hidratación de etiquetas
             const formattedChats = await Promise.all(chats.map(async chat => {
                 let labelIds = chat.labels || [];
 
+                // Hidratación forzada de etiquetas
                 if ((!labelIds || labelIds.length === 0)) {
                     try {
                         const fetchedLabels = await chat.getLabels();
@@ -590,7 +425,7 @@ class WhatsAppService {
                             labelIds = fetchedLabels.map(l => l.id);
                         }
                     } catch (err) {
-                        // Silenciar errores
+                        // Silenciar errores de fetching individual
                     }
                 }
 
@@ -606,9 +441,24 @@ class WhatsAppService {
                     } : {},
                     isGroup: chat.isGroup,
                     labels: labelIds,
-                    profilePicUrl: undefined
+                    profilePicUrl: undefined // Se llenará en la siguiente fase
                 };
             }));
+
+            // DEBUG: Hidratación de fotos de perfil explícita
+            /* console.log('[DEBUG] Hydrating profile pics for top 20 chats...');
+            await Promise.all(formattedChats.map(async (chat, index) => {
+                if (index < 20) { // Límite para performance
+                    try {
+                        let picUrl = null;
+                        // ... (código comentado)
+                        // chat.profilePicUrl = picUrl || null;
+                    } catch (err) {
+                        // console.error(...)
+                    }
+                }
+            }));
+            console.log('[DEBUG] Finished hydration.'); */
 
             return formattedChats;
         } catch (e) {
@@ -618,6 +468,7 @@ class WhatsAppService {
     }
 
     async getFormattedLabels(userId) {
+        // Paleta oficial de colores de etiquetas de WhatsApp Web
         const LabelColorPalette = [
             '#ff9485', '#64c4ff', '#ffd429', '#dfaef0', '#99b6c1',
             '#55ccb3', '#ff9dff', '#d3a91d', '#6d7cce', '#d7e752',
@@ -633,15 +484,18 @@ class WhatsAppService {
             if (!Array.isArray(labels)) return [];
 
             return await Promise.all(labels.map(async l => {
-                let color = '#cccccc';
+                let color = '#cccccc'; // Default
                 try {
+                    // Prioridad 1: HexColor directo si existe y es válido
                     if (l.hexColor && l.hexColor.startsWith('#')) {
                         color = l.hexColor;
                     }
+                    // Prioridad 2: Color como índice numérico
                     else if (typeof l.color === 'number') {
                         const index = l.color % LabelColorPalette.length;
                         color = LabelColorPalette[index];
                     }
+                    // Prioridad 3: ID numérico como semilla
                     else if (l.id) {
                         const numericId = parseInt(l.id.replace(/\D/g, '')) || 0;
                         color = LabelColorPalette[numericId % LabelColorPalette.length];
@@ -650,6 +504,7 @@ class WhatsAppService {
                     console.error('Error calculating label color:', l, err);
                 }
 
+                // Obtener conteo real de chats usando el método de la etiqueta
                 let count = 0;
                 try {
                     const labelChats = await l.getChats();
@@ -671,14 +526,36 @@ class WhatsAppService {
         }
     }
 
+    async logout(userId) {
+        const client = this.clients.get(userId);
+        if (client) {
+            try {
+                console.log(`Logging out client ${userId}...`);
+                await client.logout();
+                this.clients.delete(userId);
+                setTimeout(() => this.initializeClient(userId), 1000);
+            } catch (e) {
+                console.error('Error logging out:', e);
+                this.clients.delete(userId);
+                this.initializeClient(userId);
+            }
+        } else {
+            this.initializeClient(userId);
+        }
+    }
     async updateChatLabels(userId, chatId, labelIds, action = 'add') {
         const client = this.clients.get(userId);
         if (!client) throw new Error('Client not initialized');
 
-        const targetChatId = chatId.includes('@') ? chatId : `${chatId.replace(/\D/g, '')}@c.us`;
+        // Formato seguro de Chat ID
+        const targetChatId = chatId.includes('@') ? chatId : `${chatId.replace(/\D/g, '')} @c.us`;
+
+        // labelIds debe ser un array
         const labelsToProcess = Array.isArray(labelIds) ? labelIds : [labelIds];
 
         try {
+            // ESTRATEGIA: Inyección Puppeteer (Directo al Store de WhatsApp)
+            // Esto es lo más robusto porque se salta la abstracción de la librería.
             await client.pupPage.evaluate(async (chatId, labelIds, action) => {
                 const chatModel = window.Store.Chat.get(chatId);
                 const labelModels = labelIds.map(id => window.Store.Label.get(id)).filter(Boolean);
@@ -686,6 +563,13 @@ class WhatsAppService {
                 if (!chatModel) return;
 
                 if (window.Store.Label && window.Store.Label.addOrRemoveLabels) {
+                    // Método estándar en versiones recientes
+                    // addOrRemoveLabels agrega si no está, quita si está.
+                    // Para ser precisos, calculamos la diferencia nosotros mismos o usamos add/remove específicos si existen.
+
+                    // Como addOrRemoveLabels es toggle, necesitamos saber el estado actual
+                    // Mejor usamos la estrategia de guardar el set completo (saveLabels)
+
                     const currentLabels = chatModel.labels || [];
                     let newLabels = new Set(currentLabels);
 
@@ -694,12 +578,19 @@ class WhatsAppService {
                         else newLabels.delete(id);
                     });
 
+                    // Si existe el comando para guardar etiquetas (más común en wwebjs internals)
                     if (window.Store.Cmd && window.Store.Cmd.saveLabels) {
                         await window.Store.Cmd.saveLabels(chatId, Array.from(newLabels));
                     } else {
+                        // Fallback a addOrRemoveLabels intentando ser inteligente
+                        // Solo pasamos los que realmente necesitan cambiar
                         const toToggle = labelModels.filter(l => {
                             const hasLabel = newLabels.has(l.id);
                             const shouldHave = action === 'add';
+                            // Si lo tiene y lo queremos agregar -> no hacer nada
+                            // Si no lo tiene y lo queremos agregar -> toggle
+                            // Si lo tiene y lo queremos quitar -> toggle
+                            // Si no lo tiene y lo queremos quitar -> no hacer nada
                             return (currentLabels.includes(l.id) !== shouldHave);
                         });
 
@@ -710,11 +601,13 @@ class WhatsAppService {
                 }
             }, targetChatId, labelsToProcess, action);
 
+            // Retornar etiquetas actualizadas (simulado)
+            // Damos un pequeño respiro para que WA actualice la UI interna
             await new Promise(r => setTimeout(r, 200));
 
             const chat = await client.getChatById(targetChatId);
             if (!chat) {
-                console.warn(`[Labels] Chat not found for ${targetChatId} after update. Returning empty.`);
+                console.warn(`[Labels] Chat not found for ${targetChatId} after update.Returning empty.`);
                 return [];
             }
             return await chat.getLabels();
@@ -722,6 +615,7 @@ class WhatsAppService {
         } catch (pupError) {
             console.error('[Labels] Puppeteer strategy failed:', pupError);
 
+            // Fallback a métodos legacy del objeto Chat (puede que funcionen en esta versión especifica)
             try {
                 const chat = await client.getChatById(targetChatId);
                 if (action === 'add') await chat.addLabels(labelsToProcess);
@@ -732,6 +626,60 @@ class WhatsAppService {
                 throw new Error('Failed to update labels via any method');
             }
         }
+    }
+
+    startHealthCheck(userId) {
+        if (this.healthCheckIntervals.has(userId)) return;
+
+        console.log(`[WA Service] Starting Health Check for ${userId}`);
+        const interval = setInterval(async () => {
+            const client = this.clients.get(userId);
+            if (!client) {
+                this.stopHealthCheck(userId);
+                return;
+            }
+
+            try {
+                // Race condition check: If getState takes too long, it's frozen
+                const statePromise = client.getState();
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Timeout')), 10000)
+                );
+
+                const state = await Promise.race([statePromise, timeoutPromise]);
+
+                if (state !== 'CONNECTED') {
+                    console.warn(`[Health Check] User ${userId} state is ${state}. Restarting...`);
+                    this.restartClient(userId);
+                }
+            } catch (err) {
+                console.error(`[Health Check] Failed for ${userId}(Err: ${err.message}).Client might be zombie.Restarting...`);
+                this.restartClient(userId);
+            }
+        }, 5 * 60 * 1000); // Check every 5 minutes
+
+        this.healthCheckIntervals.set(userId, interval);
+    }
+
+    stopHealthCheck(userId) {
+        if (this.healthCheckIntervals.has(userId)) {
+            clearInterval(this.healthCheckIntervals.get(userId));
+            this.healthCheckIntervals.delete(userId);
+        }
+    }
+
+    async restartClient(userId) {
+        console.log(`[WA Service] Restarting client for ${userId}...`);
+        this.stopHealthCheck(userId);
+
+        const client = this.clients.get(userId);
+        if (client) {
+            this.clients.delete(userId);
+            try { await client.destroy(); } catch (e) { }
+        }
+
+        // Wait and re-init
+        setTimeout(() => this.initializeClient(userId), 5000);
     }
 }
 
