@@ -150,12 +150,8 @@ export const sendMessage = async (req, res) => {
                     logApi(`[Background] URL Message Sent to ${formattedPhone}`);
                 } else {
                     console.log(`[API - BG] Sending text to ${formattedPhone}`);
-                    // Prefer chat.sendMessage if chat object exists (more stable)
-                    if (chat) {
-                        await chat.sendMessage(targetMessage);
-                    } else {
-                        await client.sendMessage(formattedPhone, targetMessage, { sendSeen: false });
-                    }
+                    // Always use client.sendMessage with sendSeen: false to avoid 'markedUnread' errors
+                    await client.sendMessage(formattedPhone, targetMessage, { sendSeen: false });
                     logApi(`[Background] Text Message Sent to ${formattedPhone}`);
                 }
             } catch (bgError) {
