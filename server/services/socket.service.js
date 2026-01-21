@@ -9,6 +9,8 @@ class SocketService {
         this.io = null;
         // Almacenar estado por usuario: { [userId]: { state: 'DISCONNECTED', qr: null } }
         this.userStates = new Map();
+        // Lock para evitar múltiples cargas simultáneas de datos
+        this.refreshLocks = new Map();
     }
 
     initialize(server) {
@@ -163,12 +165,30 @@ class SocketService {
     }
 
     async refreshDataForSocket(socket, userId) {
-        // console.log(`Refreshing data for ${userId}`);
-        const chats = await whatsappService.getFormattedChats(userId);
-        const labels = await whatsappService.getFormattedLabels(userId);
+        // Evitar múltiples cargas simultáneas para el mismo usuario
+        if (this.refreshLocks.get(userId)) {
+            console.log(`[Socket] Refresh already in progress for ${userId}. Skipping.`);
+            return;
+        }
 
-        socket.emit('chat-update', chats);
-        socket.emit('labels-update', labels);
+        this.refreshLocks.set(userId, true);
+        console.log(`[Socket] Refreshing data for ${userId}`);
+
+        try {
+            const chats = await whatsappService.getFormattedChats(userId);
+            const labels = await whatsappService.getFormattedLabels(userId);
+
+            socket.emit('chat-update', chats);
+            socket.emit('labels-update', labels);
+            console.log(`[Socket] Data refreshed for ${userId}: ${chats.length} chats, ${labels.length} labels`);
+        } catch (err) {
+            console.error(`[Socket] Error refreshing data for ${userId}:`, err.message);
+        } finally {
+            // Liberar lock después de un pequeño delay para evitar múltiples cargas inmediatas
+            setTimeout(() => {
+                this.refreshLocks.delete(userId);
+            }, 3000);
+        }
     }
 
     setupWhatsappListeners() {
@@ -181,10 +201,26 @@ class SocketService {
             this.updateUserState(userId, { state: 'READY', qr: null });
             this.io.to(`user:${userId}`).emit('ready', { userId });
 
-            const chats = await whatsappService.getFormattedChats(userId);
-            const labels = await whatsappService.getFormattedLabels(userId);
-            this.io.to(`user:${userId}`).emit('chat-update', chats);
-            this.io.to(`user:${userId}`).emit('labels-update', labels);
+            // Usar el sistema de lock para evitar cargas duplicadas
+            if (this.refreshLocks.get(userId)) {
+                console.log(`[Socket] Ready event: Refresh already in progress for ${userId}. Skipping.`);
+                return;
+            }
+
+            this.refreshLocks.set(userId, true);
+            try {
+                const chats = await whatsappService.getFormattedChats(userId);
+                const labels = await whatsappService.getFormattedLabels(userId);
+                this.io.to(`user:${userId}`).emit('chat-update', chats);
+                this.io.to(`user:${userId}`).emit('labels-update', labels);
+                console.log(`[Socket] Ready event: Data sent for ${userId}: ${chats.length} chats, ${labels.length} labels`);
+            } catch (err) {
+                console.error(`[Socket] Ready event: Error loading data for ${userId}:`, err.message);
+            } finally {
+                setTimeout(() => {
+                    this.refreshLocks.delete(userId);
+                }, 3000);
+            }
         });
 
         whatsappService.on('authenticated', ({ userId }) => {

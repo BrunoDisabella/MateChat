@@ -717,22 +717,24 @@ class WhatsAppService {
 
         try {
             console.log('[DEBUG] Start fetching chats from WA...');
-            const chats = await client.getChats();
-            console.log(`[DEBUG] Fetched ${chats.length} raw chats.`);
+            const allChats = await client.getChats();
+            console.log(`[DEBUG] Fetched ${allChats.length} raw chats.`);
 
-            const formattedChats = await Promise.all(chats.map(async chat => {
-                let labelIds = chat.labels || [];
+            // OPTIMIZACIÓN: Limitar a los 500 chats más recientes para evitar timeouts
+            const MAX_CHATS = 500;
+            const chats = allChats
+                .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+                .slice(0, MAX_CHATS);
 
-                if ((!labelIds || labelIds.length === 0)) {
-                    try {
-                        const fetchedLabels = await chat.getLabels();
-                        if (fetchedLabels && fetchedLabels.length > 0) {
-                            labelIds = fetchedLabels.map(l => l.id);
-                        }
-                    } catch (err) {
-                        // Silenciar errores
-                    }
-                }
+            if (allChats.length > MAX_CHATS) {
+                console.log(`[DEBUG] Limited to ${MAX_CHATS} most recent chats (of ${allChats.length} total)`);
+            }
+
+            // OPTIMIZACIÓN: Usar map síncrono sin llamadas adicionales a getLabels()
+            // Las labels ya vienen en chat.labels si existen - NO hacer 500+ llamadas async
+            const formattedChats = chats.map(chat => {
+                // Usar labels existentes en el objeto chat, sin llamadas adicionales
+                const labelIds = chat.labels || [];
 
                 return {
                     id: chat.id._serialized,
@@ -748,7 +750,7 @@ class WhatsAppService {
                     labels: labelIds,
                     profilePicUrl: undefined
                 };
-            }));
+            });
 
             return formattedChats;
         } catch (e) {
@@ -768,11 +770,26 @@ class WhatsAppService {
         const client = this.clients.get(userId);
         if (!client) return [];
 
+        // Verificar que el cliente esté en estado READY antes de continuar
+        const state = this.clientStates.get(userId);
+        if (state !== 'READY' && state !== 'CONNECTED') {
+            console.log(`[Labels] Client ${userId} not ready (state: ${state}). Skipping labels fetch.`);
+            return [];
+        }
+
         try {
+            // Verificar que pupPage existe antes de continuar
+            if (!client.pupPage) {
+                console.log(`[Labels] Client ${userId} has no pupPage. Skipping labels fetch.`);
+                return [];
+            }
+
             const labels = await client.getLabels();
             if (!Array.isArray(labels)) return [];
 
-            return await Promise.all(labels.map(async l => {
+            // OPTIMIZACIÓN: No llamar a l.getChats() para cada label - es MUY pesado
+            // En su lugar, devolver count: 0 y dejar que el frontend lo maneje
+            return labels.map(l => {
                 let color = '#cccccc';
                 try {
                     if (l.hexColor && l.hexColor.startsWith('#')) {
@@ -790,21 +807,13 @@ class WhatsAppService {
                     console.error('Error calculating label color:', l, err);
                 }
 
-                let count = 0;
-                try {
-                    const labelChats = await l.getChats();
-                    count = labelChats.length;
-                } catch (err) {
-                    // Fail silently
-                }
-
                 return {
                     id: l.id,
                     name: l.name,
                     color: color,
-                    count: count
+                    count: 0 // No calcular count para evitar N llamadas adicionales
                 };
-            }));
+            });
         } catch (e) {
             console.error('Error fetching labels:', e);
             return [];
