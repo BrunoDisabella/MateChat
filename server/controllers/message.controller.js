@@ -1,4 +1,5 @@
 import { whatsappService } from '../services/whatsapp.service.js';
+import { messageQueue } from '../services/messageQueue.service.js';
 import pkg from 'whatsapp-web.js';
 const { MessageMedia } = pkg;
 import { logApi } from '../services/logger.service.js';
@@ -50,122 +51,108 @@ export const sendMessage = async (req, res) => {
             formattedPhone = targetPhone.replace(/\D/g, '') + '@c.us';
         }
 
+        // Capturar datos necesarios para el job ANTES de responder
+        const mediaData = req.body.media ? { ...req.body.media } : null;
+        const caption = req.body.caption || targetMessage;
+
         logApi(`Queueing message for ${formattedPhone}.`, {
-            hasMedia: !!(req.body.media || mediaUrl),
+            hasMedia: !!(mediaData || mediaUrl),
             textLength: targetMessage?.length
         });
 
-        // Respond IMMEDIATELY to prevent timeout
+        // ENCOLAR el trabajo - NO ejecutar inmediatamente
+        // La cola procesará secuencialmente para evitar saturación
+        messageQueue.enqueue(userId, async () => {
+            // Re-obtener cliente dentro del job por si cambió
+            const currentClient = whatsappService.getClient(userId);
+            if (!currentClient) {
+                throw new Error(`Client ${userId} no longer available`);
+            }
+
+            logApi(`[Queue Job] Starting send to ${formattedPhone}`);
+
+            if (mediaData && mediaData.base64) {
+                let { base64, mimetype, filename } = mediaData;
+
+                // Validate & Clean Base64
+                if (typeof base64 !== 'string') {
+                    throw new Error('Media base64 must be a string');
+                }
+
+                // Remove common data URI prefixes if present
+                base64 = base64.replace(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/, '');
+
+                let finalMime = mimetype || 'image/jpeg';
+
+                const options = { sendSeen: false };
+                if (caption) options.caption = caption;
+
+                // Auto-detect voice note intent
+                if (finalMime.startsWith('audio/')) {
+                    options.sendAudioAsVoice = true;
+                    logApi('[Queue Job] Detected Audio: Converting to Opus/OGG...');
+                    try {
+                        base64 = await convertToOpus(base64);
+                        finalMime = 'audio/ogg; codecs=opus';
+                        logApi('[Queue Job] Audio Conversion Successful');
+                    } catch (conversionError) {
+                        console.error('Audio conversion failed, sending original:', conversionError);
+                        logApi('[Queue Job] Audio Conversion Failed', conversionError);
+                    }
+                }
+
+                console.log(`[Queue Job] Processing MEDIA. Mime: ${finalMime}, Length: ${base64.length}`);
+
+                const media = new MessageMedia(finalMime, base64, filename);
+
+                try {
+                    await currentClient.sendMessage(formattedPhone, media, options);
+                    logApi(`[Queue Job] MEDIA Sent Successfully to ${formattedPhone}`);
+                } catch (sendError) {
+                    logApi(`[Queue Job] Primary Send Failed`, sendError);
+
+                    // Fallback: Try sending without voice note flag
+                    if (options.sendAudioAsVoice) {
+                        logApi('[Queue Job] Retrying voice note as document...');
+                        delete options.sendAudioAsVoice;
+                        await currentClient.sendMessage(formattedPhone, media, options);
+                        logApi(`[Queue Job] Fallback MEDIA Sent Successfully`);
+                    } else {
+                        throw sendError;
+                    }
+                }
+            } else if (mediaUrl) {
+                // Legacy mediaUrl (URL text message)
+                const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
+                await currentClient.sendMessage(formattedPhone, textToSend, { sendSeen: false });
+                logApi(`[Queue Job] URL Message Sent to ${formattedPhone}`);
+            } else {
+                console.log(`[Queue Job] Sending text to ${formattedPhone}`);
+                await currentClient.sendMessage(formattedPhone, targetMessage, { sendSeen: false });
+                logApi(`[Queue Job] Text Message Sent to ${formattedPhone}`);
+            }
+        }).then(() => {
+            // Éxito (el log ya se hizo dentro del job)
+        }).catch((error) => {
+            console.error(`[Queue] FAILED to send message to ${formattedPhone}:`, error.message);
+            logApi(`[Queue] FATAL ERROR sending to ${formattedPhone}`, error);
+        });
+
+        // Respond IMMEDIATELY - el trabajo está encolado
         res.json({
             success: true,
             status: 'queued',
             timestamp: Date.now(),
-            note: 'Message is processing in background'
+            queueStats: messageQueue.getStats(),
+            note: 'Message is queued for processing'
         });
-
-        // ---------------------------------------------------------
-        // BACKGROUND PROCESSING (Async - No Await needed for Response)
-        // ---------------------------------------------------------
-        (async () => {
-            try {
-                logApi(`[Background] Starting process for ${formattedPhone}`);
-
-                // Check if chat exists before sending
-                let chat;
-                try {
-                    chat = await client.getChatById(formattedPhone);
-                } catch (e) {
-                    logApi(`[Background] Check chat failed for ${formattedPhone}`, e);
-                }
-
-                if (!chat) {
-                    logApi(`[Background] Chat not found for ${formattedPhone}. Attempting direct send.`);
-                }
-
-                if (req.body.media && req.body.media.base64) {
-                    let { base64, mimetype, filename } = req.body.media;
-
-                    // Validate & Clean Base64
-                    if (typeof base64 !== 'string') {
-                        throw new Error('Media base64 must be a string');
-                    }
-
-                    // Log raw base64 start to check format
-                    logApi(`[Background] Processing Base64 media. Mime: ${mimetype}`, {
-                        base64Preview: base64.substring(0, 50) + '...',
-                        totalLength: base64.length
-                    });
-
-                    // Remove common data URI prefixes if present
-                    base64 = base64.replace(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/, '');
-
-                    let finalMime = mimetype || 'image/jpeg';
-
-                    const options = {};
-                    if (req.body.caption) options.caption = req.body.caption;
-                    if (targetMessage) options.caption = targetMessage; // Priority to direct message param
-
-                    // Auto-detect voice note intent
-                    if (finalMime.startsWith('audio/')) {
-                        options.sendAudioAsVoice = true;
-                        logApi('[Background] Detected Audio: Converting to Opus/OGG for Mobile Compatibility...');
-                        try {
-                            base64 = await convertToOpus(base64);
-                            finalMime = 'audio/ogg; codecs=opus';
-                            logApi('[Background] Audio Conversion Successful');
-                        } catch (conversionError) {
-                            console.error('Audio conversion failed, sending original:', conversionError);
-                            logApi('[Background] Audio Conversion Failed', conversionError);
-                            // Fallback to original, might fail on mobile but better than crashing
-                        }
-                    }
-
-                    console.log(`[API - BG] Processing MEDIA. Mime: ${finalMime}, Length: ${base64.length}`);
-
-                    const media = new MessageMedia(finalMime, base64, filename);
-
-                    try {
-                        // DISABLED: 'Mark as read' feature causes crash in current Library version
-                        options.sendSeen = false;
-                        await client.sendMessage(formattedPhone, media, options);
-                        logApi(`[Background] MEDIA Sent Successfully to ${formattedPhone}`);
-                    } catch (sendError) {
-                        logApi(`[Background] Primary Send Failed`, sendError);
-
-                        // Fallback: Try sending without voice note flag if it failed (maybe ffmpeg missing)
-                        if (options.sendAudioAsVoice) {
-                            logApi('[Background] Retrying voice note as document...');
-                            delete options.sendAudioAsVoice;
-                            options.sendSeen = false;
-                            await client.sendMessage(formattedPhone, media, options);
-                            logApi(`[Background] Fallback MEDIA Sent Successfully`);
-                        } else {
-                            throw sendError;
-                        }
-                    }
-                } else if (mediaUrl) {
-                    // Legacy mediaUrl (URL text message)
-                    const textToSend = targetMessage ? `${targetMessage}\n\n${mediaUrl}` : mediaUrl;
-                    await client.sendMessage(formattedPhone, textToSend, { sendSeen: false });
-                    logApi(`[Background] URL Message Sent to ${formattedPhone}`);
-                } else {
-                    console.log(`[API - BG] Sending text to ${formattedPhone}`);
-                    // Always use client.sendMessage with sendSeen: false to avoid 'markedUnread' errors
-                    await client.sendMessage(formattedPhone, targetMessage, { sendSeen: false });
-                    logApi(`[Background] Text Message Sent to ${formattedPhone}`);
-                }
-            } catch (bgError) {
-                console.error(`[API - BG] FAILED to send message to ${formattedPhone}:`, bgError);
-                logApi(`[Background] FATAL ERROR sending to ${formattedPhone}`, bgError);
-            }
-        })();
 
     } catch (error) {
         console.error('API Send Message Error:', error);
         logApi('API Controller Error', error);
-        // Only valid if response hasn't been sent yet (though we send it early now)
         if (!res.headersSent) {
             return res.status(500).json({ error: error.message });
         }
     }
 };
+
