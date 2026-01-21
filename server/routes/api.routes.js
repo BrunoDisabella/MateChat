@@ -15,6 +15,8 @@ router.use(authenticateApiKeyOnly);
 router.get('/status', statusController.getStatus);
 router.get('/health', statusController.healthCheck);
 router.post('/restart', statusController.forceRestart);
+router.post('/force-cleanup', statusController.forceCleanup);
+router.post('/kill-zombies', statusController.killZombies);
 
 // Debug
 router.post('/debug/test-webhook', testController.triggerTestWebhook);

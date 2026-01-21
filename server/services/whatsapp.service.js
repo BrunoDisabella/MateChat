@@ -5,6 +5,7 @@ import { config } from '../config/index.js';
 import { settingsService } from './settings.service.js';
 import fs from 'fs';
 import path from 'path';
+import { exec, execSync } from 'child_process';
 
 /**
  * WhatsApp Service - Versión mejorada con Keep-Alive y Health Check robusto
@@ -24,7 +25,102 @@ class WhatsAppService {
         this.keepAliveIntervals = new Map(); // NUEVO: Intervalos de keep-alive
         this.explicitLogouts = new Set();
         this.clientStates = new Map(); // NUEVO: Track estado real de cada cliente
+        this.initializingClients = new Set(); // NUEVO: Prevenir múltiples inits simultáneos
         settingsService.initialize();
+    }
+
+    /**
+     * NUEVO: Matar procesos zombie de Chrome/Chromium que quedaron corriendo
+     */
+    async killZombieProcesses() {
+        const isWindows = process.platform === 'win32';
+
+        try {
+            if (isWindows) {
+                // En Windows, buscar procesos chrome que usen .wwebjs_auth
+                console.log('[WA Service] 🔪 Buscando procesos Chrome zombie en Windows...');
+                try {
+                    execSync('taskkill /F /IM chrome.exe /FI "WINDOWTITLE eq *wwebjs*"', { stdio: 'ignore' });
+                } catch (e) {
+                    // Ignorar si no hay procesos para matar
+                }
+
+                // También intentar matar chromium
+                try {
+                    execSync('taskkill /F /IM chromium.exe', { stdio: 'ignore' });
+                } catch (e) {
+                    // Ignorar
+                }
+            } else {
+                // En Linux/Mac
+                console.log('[WA Service] 🔪 Buscando procesos Chrome zombie en Unix...');
+                try {
+                    execSync('pkill -f "chromium.*wwebjs" || true', { stdio: 'ignore' });
+                    execSync('pkill -f "chrome.*wwebjs" || true', { stdio: 'ignore' });
+                } catch (e) {
+                    // Ignorar
+                }
+            }
+            console.log('[WA Service] ✅ Limpieza de procesos zombie completada');
+        } catch (error) {
+            console.warn('[WA Service] ⚠️ Error limpiando procesos zombie:', error.message);
+        }
+    }
+
+    /**
+     * NUEVO: Limpieza forzada de una sesión específica
+     */
+    async forceCleanupSession(userId) {
+        console.log(`[WA Service] 🧹 Force cleanup for session ${userId}...`);
+
+        // 1. Detener health check y keep-alive
+        this.stopHealthCheck(userId);
+        this.stopKeepAlive(userId);
+
+        // 2. Destruir cliente si existe
+        const client = this.clients.get(userId);
+        if (client) {
+            try {
+                // Intentar cerrar el navegador directamente
+                if (client.pupBrowser) {
+                    console.log(`[WA Service] Cerrando browser forzosamente para ${userId}...`);
+                    await Promise.race([
+                        client.pupBrowser.close(),
+                        new Promise(r => setTimeout(r, 5000))
+                    ]);
+                }
+            } catch (e) {
+                console.warn(`[WA Service] Error cerrando browser: ${e.message}`);
+            }
+
+            try {
+                await Promise.race([
+                    client.destroy(),
+                    new Promise(r => setTimeout(r, 5000))
+                ]);
+            } catch (e) {
+                console.warn(`[WA Service] Error destroying client: ${e.message}`);
+            }
+
+            this.clients.delete(userId);
+        }
+
+        // 3. Limpiar el lock file si existe (en caso de Linux)
+        const lockPath = path.resolve(process.cwd(), '.wwebjs_auth_v2', `session-${userId}`, 'SingletonLock');
+        try {
+            if (fs.existsSync(lockPath)) {
+                fs.unlinkSync(lockPath);
+                console.log(`[WA Service] Removed lock file for ${userId}`);
+            }
+        } catch (e) {
+            console.warn(`[WA Service] Could not remove lock file: ${e.message}`);
+        }
+
+        // 4. Limpiar estados
+        this.clientStates.set(userId, 'CLEANED');
+        this.initializingClients.delete(userId);
+
+        console.log(`[WA Service] ✅ Force cleanup completed for ${userId}`);
     }
 
     /**
@@ -80,13 +176,31 @@ class WhatsAppService {
         }
     }
 
-    initializeClient(userId) {
+    async initializeClient(userId) {
         if (!userId) throw new Error('UserId is required for initialization');
 
-        if (this.clients.has(userId)) {
-            console.log(`[WA Service] Client ${userId} already exists.`);
+        // Prevenir múltiples inicializaciones simultáneas
+        if (this.initializingClients.has(userId)) {
+            console.log(`[WA Service] ⏳ Client ${userId} is already being initialized. Skipping.`);
             return this.clients.get(userId);
         }
+
+        if (this.clients.has(userId)) {
+            const existingClient = this.clients.get(userId);
+            const state = this.clientStates.get(userId);
+
+            // Si el cliente existe pero está en error, limpiarlo
+            if (state === 'ERROR') {
+                console.log(`[WA Service] Client ${userId} exists but is in ERROR state. Cleaning up...`);
+                await this.forceCleanupSession(userId);
+            } else {
+                console.log(`[WA Service] Client ${userId} already exists with state: ${state}`);
+                return existingClient;
+            }
+        }
+
+        // Marcar que estamos inicializando
+        this.initializingClients.add(userId);
 
         console.log(`[WA Service] Initializing NEW WhatsApp client for ${userId}...`);
         this.emit('status_change', { status: 'INITIALIZING', userId });
@@ -105,7 +219,7 @@ class WhatsAppService {
                     '--disable-dev-shm-usage',
                     '--disable-gpu',
                     '--disable-software-rasterizer',
-                    // NUEVOS FLAGS DE ESTABILIDAD:
+                    // FLAGS DE ESTABILIDAD:
                     '--disable-features=IsolateOrigins,site-per-process',
                     '--disable-site-isolation-trials',
                     '--single-process',
@@ -130,11 +244,26 @@ class WhatsAppService {
 
         client.initialize().then(() => {
             console.log(`[WA Service] Client initialize promise resolved for ${userId}`);
-        }).catch(err => {
+            this.initializingClients.delete(userId);
+        }).catch(async (err) => {
             console.error(`[WA Service] Client initialize REJECTED for ${userId}:`, err);
+
+            // Detectar error de browser ya corriendo
+            const errorMsg = err.message || String(err);
+            if (errorMsg.includes('browser is already running') || errorMsg.includes('userDataDir')) {
+                console.log(`[WA Service] 🔄 Detected zombie browser. Forcing cleanup for ${userId}...`);
+                await this.forceCleanupSession(userId);
+
+                // Reintentar después de limpieza
+                console.log(`[WA Service] 🔄 Retrying initialization in 3 seconds...`);
+                setTimeout(() => this.initializeClient(userId), 3000);
+                return;
+            }
+
             this.emit('status_change', { status: 'ERROR', userId });
             this.clientStates.set(userId, 'ERROR');
             this.clients.delete(userId);
+            this.initializingClients.delete(userId);
         });
 
         this.clients.set(userId, client);
@@ -350,37 +479,48 @@ class WhatsAppService {
             return;
         }
 
+        console.log(`[WA Service] 🚪 Logging out client ${userId}...`);
+        this.explicitLogouts.add(userId);
+        this.stopHealthCheck(userId);
+        this.stopKeepAlive(userId);
+
         const client = this.clients.get(userId);
         if (client) {
-            console.log(`[WA Service] 🚪 Logging out client ${userId}...`);
-            this.explicitLogouts.add(userId);
-            this.stopHealthCheck(userId);
-            this.stopKeepAlive(userId);
-
             try {
-                await client.logout();
+                // Intentar logout normal con timeout
+                await Promise.race([
+                    client.logout(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Logout timeout')), 10000))
+                ]);
                 console.log(`[WA Service] ✅ Logout successful for ${userId}`);
             } catch (error) {
-                console.error(`[WA Service] Error logging out client ${userId}:`, error);
-                try {
-                    console.log(`[WA Service] Forcing destroy for ${userId}...`);
-                    await client.destroy();
-                } catch (destroyError) {
-                    console.error(`[WA Service] Failed to force destroy ${userId}:`, destroyError);
-                }
-            } finally {
-                this.clients.delete(userId);
-                this.clientStates.set(userId, 'LOGGED_OUT');
-
-                setTimeout(() => {
-                    console.log(`[WA Service] Restarting client for ${userId} to show QR...`);
-                    this.initializeClient(userId);
-                }, 2000);
+                console.error(`[WA Service] Error logging out client ${userId}:`, error.message);
             }
-        } else {
-            console.warn(`[WA Service] No active client found for logout ${userId}`);
-            this.initializeClient(userId);
         }
+
+        // Siempre hacer limpieza forzada para asegurar que todo esté limpio
+        await this.forceCleanupSession(userId);
+
+        // Borrar la carpeta de sesión para obtener un QR nuevo
+        const sessionPath = path.resolve(process.cwd(), '.wwebjs_auth_v2', `session-${userId}`);
+        try {
+            if (fs.existsSync(sessionPath)) {
+                console.log(`[WA Service] 🗑️ Removing session folder for ${userId}...`);
+                fs.rmSync(sessionPath, { recursive: true, force: true });
+                console.log(`[WA Service] ✅ Session folder removed`);
+            }
+        } catch (e) {
+            console.warn(`[WA Service] Could not remove session folder: ${e.message}`);
+        }
+
+        this.clientStates.set(userId, 'LOGGED_OUT');
+
+        // Esperar un poco más antes de reinicializar
+        console.log(`[WA Service] ⏳ Waiting 4s before re-initializing ${userId} for new QR...`);
+        setTimeout(() => {
+            this.explicitLogouts.delete(userId);
+            this.initializeClient(userId);
+        }, 4000);
     }
 
     /**

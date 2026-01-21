@@ -107,3 +107,52 @@ export const forceRestart = async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 };
+
+/**
+ * POST /api/force-cleanup - Limpieza forzada de sesión (para resolver procesos zombie)
+ */
+export const forceCleanup = async (req, res) => {
+    try {
+        const userId = req.userId || 'default-user';
+
+        console.log(`[Status] Force cleanup requested for ${userId}`);
+
+        // Primero matar procesos zombie
+        await whatsappService.killZombieProcesses();
+
+        // Luego limpiar la sesión específica
+        await whatsappService.forceCleanupSession(userId);
+
+        // Esperar un poco y reinicializar
+        setTimeout(() => {
+            whatsappService.initializeClient(userId);
+        }, 2000);
+
+        res.json({
+            success: true,
+            message: `Force cleanup completed for ${userId}`,
+            note: 'Client will be re-initialized in 2 seconds'
+        });
+    } catch (error) {
+        console.error('[Status] Force cleanup failed:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/kill-zombies - Matar todos los procesos Chrome zombie
+ */
+export const killZombies = async (req, res) => {
+    try {
+        console.log(`[Status] Kill zombies requested`);
+        await whatsappService.killZombieProcesses();
+
+        res.json({
+            success: true,
+            message: 'Zombie Chrome processes have been killed'
+        });
+    } catch (error) {
+        console.error('[Status] Kill zombies failed:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
