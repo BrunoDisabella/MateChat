@@ -26,6 +26,7 @@ class WhatsAppService {
         this.explicitLogouts = new Set();
         this.clientStates = new Map(); // NUEVO: Track estado real de cada cliente
         this.initializingClients = new Set(); // NUEVO: Prevenir múltiples inits simultáneos
+        this.initRetryCount = new Map(); // NUEVO: Contador de reintentos por usuario
         settingsService.initialize();
     }
 
@@ -105,7 +106,18 @@ class WhatsAppService {
             this.clients.delete(userId);
         }
 
-        // 3. Limpiar el lock file si existe (en caso de Linux)
+        // 3. Matar procesos de Chrome específicos para esta sesión (UNIX only)
+        if (process.platform !== 'win32') {
+            try {
+                const sessionPath = `session-${userId}`;
+                console.log(`[WA Service] 🔪 Killing Chrome processes for ${sessionPath}...`);
+                execSync(`pkill -9 -f "${sessionPath}" || true`, { stdio: 'ignore' });
+            } catch (e) {
+                // Ignorar errores de pkill
+            }
+        }
+
+        // 4. Limpiar el lock file si existe
         const lockPath = path.resolve(process.cwd(), '.wwebjs_auth_v2', `session-${userId}`, 'SingletonLock');
         try {
             if (fs.existsSync(lockPath)) {
@@ -116,7 +128,7 @@ class WhatsAppService {
             console.warn(`[WA Service] Could not remove lock file: ${e.message}`);
         }
 
-        // 4. Limpiar estados
+        // 5. Limpiar estados
         this.clientStates.set(userId, 'CLEANED');
         this.initializingClients.delete(userId);
 
@@ -245,18 +257,34 @@ class WhatsAppService {
         client.initialize().then(() => {
             console.log(`[WA Service] Client initialize promise resolved for ${userId}`);
             this.initializingClients.delete(userId);
+            this.initRetryCount.delete(userId); // Reset retry count on success
         }).catch(async (err) => {
             console.error(`[WA Service] Client initialize REJECTED for ${userId}:`, err);
 
             // Detectar error de browser ya corriendo
             const errorMsg = err.message || String(err);
             if (errorMsg.includes('browser is already running') || errorMsg.includes('userDataDir')) {
-                console.log(`[WA Service] 🔄 Detected zombie browser. Forcing cleanup for ${userId}...`);
+                // Limitar reintentos para evitar loop infinito
+                const retries = (this.initRetryCount.get(userId) || 0) + 1;
+                this.initRetryCount.set(userId, retries);
+
+                if (retries > 3) {
+                    console.error(`[WA Service] ❌ Max retries (3) reached for ${userId}. Giving up.`);
+                    this.emit('status_change', { status: 'ERROR', userId });
+                    this.clientStates.set(userId, 'ERROR');
+                    this.clients.delete(userId);
+                    this.initializingClients.delete(userId);
+                    this.initRetryCount.delete(userId);
+                    return;
+                }
+
+                console.log(`[WA Service] 🔄 Detected zombie browser (attempt ${retries}/3). Forcing cleanup for ${userId}...`);
                 await this.forceCleanupSession(userId);
 
-                // Reintentar después de limpieza
-                console.log(`[WA Service] 🔄 Retrying initialization in 3 seconds...`);
-                setTimeout(() => this.initializeClient(userId), 3000);
+                // Reintentar después de limpieza con delay incremental
+                const delay = retries * 3000;
+                console.log(`[WA Service] 🔄 Retrying initialization in ${delay / 1000} seconds...`);
+                setTimeout(() => this.initializeClient(userId), delay);
                 return;
             }
 
