@@ -73,10 +73,12 @@ export const sendMessage = async (req, res) => {
 
             result = await whatsappBaileysService.sendMessage(userId, jid, text);
 
+            console.log('[API] Message sent successfully, result:', JSON.stringify(result, null, 2));
+
             return res.json({
                 success: true,
-                messageId: result.key.id,
-                timestamp: result.messageTimestamp
+                messageId: result.key?.id || 'unknown',
+                timestamp: result.messageTimestamp || Date.now()
             });
         }
 
