@@ -136,7 +136,8 @@ class WhatsAppBaileysService {
 
             // Conexión cerrada
             if (connection === 'close') {
-                const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+                const boomError = lastDisconnect?.error;
+                const statusCode = boomError?.output?.statusCode;
                 const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
                 console.log(`[Baileys] 🔌 Connection closed for ${userId}. Code: ${statusCode}, Reconnect: ${shouldReconnect}`);
