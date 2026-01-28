@@ -23,6 +23,7 @@ class WhatsAppService {
         this.eventHandlers = new Map();
         this.healthCheckIntervals = new Map();
         this.keepAliveIntervals = new Map(); // NUEVO: Intervalos de keep-alive
+        this.bootWatchdogs = new Map(); // NUEVO: Monitor de arranque
         this.explicitLogouts = new Set();
         this.clientStates = new Map(); // NUEVO: Track estado real de cada cliente
         this.initializingClients = new Set(); // NUEVO: Prevenir múltiples inits simultáneos
@@ -307,6 +308,7 @@ class WhatsAppService {
 
         client.on('ready', () => {
             console.log(`[WA Service] ✅ Client ${userId} is READY!`);
+            this.clearBootWatchdog(userId); // Watchdog completado con éxito
             this.clientStates.set(userId, 'READY');
             this.emit('ready', { userId });
             this.startHealthCheck(userId);
@@ -316,6 +318,7 @@ class WhatsAppService {
         client.on('authenticated', () => {
             console.log(`[WA Service] 🔐 Client ${userId} AUTHENTICATED`);
             this.clientStates.set(userId, 'AUTHENTICATED');
+            this.startBootWatchdog(userId); // Iniciar monitor de protección
             this.emit('authenticated', { userId });
         });
 
@@ -356,6 +359,7 @@ class WhatsAppService {
 
             this.stopHealthCheck(userId);
             this.stopKeepAlive(userId); // NUEVO: Detener keep-alive
+            this.clearBootWatchdog(userId); // Limpiar watchdog
             this.clients.delete(userId);
 
             try {
@@ -477,6 +481,35 @@ class WhatsAppService {
             clearInterval(this.healthCheckIntervals.get(userId));
             this.healthCheckIntervals.delete(userId);
             console.log(`[WA Service] 🏥 Health Check stopped for ${userId}`);
+        }
+    }
+
+    /**
+     * NUEVO: Boot Watchdog - Detecta si el cliente se atora en AUTHENTICATED sin llegar a READY
+     */
+    startBootWatchdog(userId) {
+        this.clearBootWatchdog(userId);
+
+        console.log(`[WA Service] ⏱️ Starting boot watchdog for ${userId} (120s timeout for READY state)`);
+
+        const timeout = setTimeout(async () => {
+            const state = this.clientStates.get(userId);
+            if (state !== 'READY') {
+                console.error(`[WA Service] ⏰ Boot watchdog triggered for ${userId}. Stuck in ${state}. Force restarting...`);
+                await this.forceCleanupSession(userId);
+                console.log(`[WA Service] 🔄 Watchdog restarting init for ${userId}...`);
+                this.initializeClient(userId);
+            }
+        }, 120000); // 2 minutos máximo para cargar
+
+        this.bootWatchdogs.set(userId, timeout);
+    }
+
+    clearBootWatchdog(userId) {
+        if (this.bootWatchdogs.has(userId)) {
+            clearTimeout(this.bootWatchdogs.get(userId));
+            this.bootWatchdogs.delete(userId);
+            // console.log(`[WA Service] ⏱️ Boot watchdog cleared for ${userId}`);
         }
     }
 
