@@ -43,6 +43,15 @@ app.get(/.*/, (req, res) => {
     }
 });
 
+// Global Error Handler for API
+app.use((err, req, res, next) => {
+    console.error(`[Server Error] ${req.method} ${req.url}:`, err);
+    res.status(500).json({
+        success: false,
+        error: err.message || 'Internal Server Error'
+    });
+});
+
 // Initialize Services (Order matters)
 settingsService.initialize(); // Initialize DB connection first
 socketService.initialize(server);
