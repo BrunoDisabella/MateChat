@@ -7,7 +7,7 @@ import path from 'path';
 
 import { config } from './config/index.js';
 import { socketService } from './services/socket.service.js';
-import { whatsappService } from './services/whatsapp.service.js';
+import { whatsappBaileysService } from './services/whatsapp-baileys.service.js';
 import { settingsService } from './services/settings.service.js';
 import { schedulerService } from './services/scheduler.service.js';
 import apiRoutes from './routes/api.routes.js';
@@ -46,38 +46,32 @@ app.get(/.*/, (req, res) => {
 // Initialize Services (Order matters)
 settingsService.initialize(); // Initialize DB connection first
 socketService.initialize(server);
-// whatsappService.initializeClient() removed for multi-tenancy. Clients are initialized on socket connection.
-whatsappService.restoreSessions(); // Restore persisted sessions on boot
+whatsappBaileysService.restoreExistingSessions(); // Restore persisted Baileys sessions on boot
 
 // Initialize and start Scheduler Service
 schedulerService.initialize();
 schedulerService.start();
 
 // NUEVO: Status logging periódico para monitoreo
-const STATUS_LOG_INTERVAL = 10 * 60 * 1000; // Cada 10 minutos
-setInterval(() => {
-    const stats = whatsappService.getStats();
-    const memUsage = process.memoryUsage();
-    const uptime = Math.floor(process.uptime() / 60);
-
-    console.log(`\n📊 [STATUS REPORT - ${new Date().toLocaleString()}]`);
-    console.log(`   ⏱️  Uptime: ${uptime} minutes`);
-    console.log(`   💾 Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB / ${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`);
-    console.log(`   📱 WhatsApp Clients: ${stats.totalClients}`);
-    if (stats.clients.length > 0) {
-        stats.clients.forEach(c => {
-            console.log(`      - ${c.userId}: ${c.state} (Health: ${c.hasHealthCheck ? '✅' : '❌'}, KeepAlive: ${c.hasKeepAlive ? '✅' : '❌'})`);
-        });
-    }
-    console.log('');
-}, STATUS_LOG_INTERVAL);
+// TODO: Implementar getStats() en Baileys service
+// const STATUS_LOG_INTERVAL = 10 * 60 * 1000; // Cada 10 minutos
+// setInterval(() => {
+//     const stats = whatsappBaileysService.getStats();
+//     const memUsage = process.memoryUsage();
+//     const uptime = Math.floor(process.uptime() / 60);
+//     console.log(`\n📊 [STATUS REPORT - ${new Date().toLocaleString()}]`);
+//     console.log(`   ⏱️  Uptime: ${uptime} minutes`);
+//     console.log(`   💾 Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB / ${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`);
+//     console.log(`   📱 WhatsApp Clients: ${stats.totalClients}`);
+//     console.log('');
+// }, STATUS_LOG_INTERVAL);
 
 // Start Server
 server.listen(config.port, () => {
     console.log(`
     ╔══════════════════════════════════════════════════════╗
     ║                                                      ║
-    ║   🚀 MateChat Server v2.0 (Keep-Alive Edition)       ║
+    ║   🚀 MateChat Server v3.0 (Baileys Edition)          ║
     ║                                                      ║
     ╠══════════════════════════════════════════════════════╣
     ║   Port: ${config.port}                                        ║
@@ -86,11 +80,11 @@ server.listen(config.port, () => {
     ║   Status: /api/status                                ║
     ╠══════════════════════════════════════════════════════╣
     ║   Improvements:                                      ║
-    ║   ✅ Keep-Alive (every 3 min)                        ║
-    ║   ✅ Robust Health Check (every 5 min)               ║
-    ║   ✅ change_state event handling                     ║
-    ║   ✅ Puppeteer stability flags                       ║
-    ║   ✅ Detached frame detection                        ║
+    ║   ✅ Baileys WebSocket (No Puppeteer!)               ║
+    ║   ✅ Lightweight & Fast                              ║
+    ║   ✅ WhatsApp Anti-Bot Bypass                        ║
+    ║   ✅ Multi-Device Support                            ║
+    ║   ✅ Auto Session Restore                            ║
     ╚══════════════════════════════════════════════════════╝
     `);
 });
@@ -107,14 +101,14 @@ process.on('SIGINT', async () => {
     // Stop scheduler
     schedulerService.stop();
 
-    // Get all active clients and destroy them
-    const stats = whatsappService.getStats();
-    for (const client of stats.clients) {
-        console.log(`   Destroying client ${client.userId}...`);
+    // Logout all Baileys clients
+    const userIds = Array.from(whatsappBaileysService.sockets.keys());
+    for (const userId of userIds) {
+        console.log(`   Logging out client ${userId}...`);
         try {
-            await whatsappService.restartClient(client.userId);
+            await whatsappBaileysService.logout(userId);
         } catch (e) {
-            console.error(`   Failed to destroy ${client.userId}:`, e.message);
+            console.error(`   Failed to logout ${userId}:`, e.message);
         }
     }
 

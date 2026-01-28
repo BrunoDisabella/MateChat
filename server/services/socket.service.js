@@ -1,6 +1,6 @@
 
 import { Server as SocketIo } from 'socket.io';
-import { whatsappService } from './whatsapp.service.js';
+import { whatsappBaileysService } from './whatsapp-baileys.service.js';
 import { settingsService } from './settings.service.js';
 import { config } from '../config/index.js';
 
@@ -50,7 +50,7 @@ class SocketService {
             // Inicializar cliente de WhatsApp para este usuario si no existe
             // Esto asegura que el proceso se inicie al conectar el frontend
             try {
-                whatsappService.initializeClient(userId);
+                whatsappBaileysService.initializeClient(userId);
             } catch (e) {
                 console.error(`Error initializing WA client for ${userId}:`, e);
             }
@@ -65,7 +65,7 @@ class SocketService {
 
             socket.on('logout', async () => {
                 console.log(`Logout requested for ${userId}`);
-                await whatsappService.logout(userId);
+                await whatsappBaileysService.logout(userId);
                 this.updateUserState(userId, { state: 'DISCONNECTED', qr: null });
             });
 
@@ -74,12 +74,7 @@ class SocketService {
                 if (!chatId || !content) return;
 
                 try {
-                    const client = whatsappService.getClient(userId);
-                    if (client) {
-                        await client.sendMessage(chatId, content);
-                    } else {
-                        console.error(`[Socket] Client not ready for ${userId}`);
-                    }
+                    await whatsappBaileysService.sendMessage(userId, chatId, content);
                 } catch (e) {
                     console.error(`[Socket] Error sending message for ${userId}:`, e);
                 }
@@ -136,9 +131,10 @@ class SocketService {
             });
 
             // GET HISTORIAL
+            // TODO: Implementar getChatMessages en Baileys service
             socket.on('fetch-messages', async ({ chatId, limit = 50, before = null }, callback) => {
-                const messages = await whatsappService.getChatMessages(userId, chatId, { limit, before });
-                if (callback) callback(messages);
+                // const messages = await whatsappBaileysService.getChatMessages(userId, chatId, { limit, before });
+                if (callback) callback([]);
             });
         });
     }
@@ -175,12 +171,12 @@ class SocketService {
         console.log(`[Socket] Refreshing data for ${userId}`);
 
         try {
-            const chats = await whatsappService.getFormattedChats(userId);
-            const labels = await whatsappService.getFormattedLabels(userId);
-
-            socket.emit('chat-update', chats);
-            socket.emit('labels-update', labels);
-            console.log(`[Socket] Data refreshed for ${userId}: ${chats.length} chats, ${labels.length} labels`);
+            // TODO: Implementar getFormattedChats y getFormattedLabels en Baileys
+            // const chats = await whatsappBaileysService.getFormattedChats(userId);
+            // const labels = await whatsappBaileysService.getFormattedLabels(userId);
+            // socket.emit('chat-update', chats);
+            // socket.emit('labels-update', labels);
+            console.log(`[Socket] Data refresh skipped for ${userId} (Baileys migration in progress)`);
         } catch (err) {
             console.error(`[Socket] Error refreshing data for ${userId}:`, err.message);
         } finally {
@@ -192,51 +188,39 @@ class SocketService {
     }
 
     setupWhatsappListeners() {
-        whatsappService.on('qr', ({ qr, userId }) => {
+        // QR Code event
+        whatsappBaileysService.on('qr', ({ qr, userId }) => {
             this.updateUserState(userId, { state: 'QR_SENT', qr });
             this.io.to(`user:${userId}`).emit('qr', { qr });
         });
 
-        whatsappService.on('ready', async ({ userId }) => {
+        // Ready event (connection established)
+        whatsappBaileysService.on('ready', async ({ userId }) => {
             this.updateUserState(userId, { state: 'READY', qr: null });
             this.io.to(`user:${userId}`).emit('ready', { userId });
-
-            // Usar el sistema de lock para evitar cargas duplicadas
-            if (this.refreshLocks.get(userId)) {
-                console.log(`[Socket] Ready event: Refresh already in progress for ${userId}. Skipping.`);
-                return;
-            }
-
-            this.refreshLocks.set(userId, true);
-            try {
-                const chats = await whatsappService.getFormattedChats(userId);
-                const labels = await whatsappService.getFormattedLabels(userId);
-                this.io.to(`user:${userId}`).emit('chat-update', chats);
-                this.io.to(`user:${userId}`).emit('labels-update', labels);
-                console.log(`[Socket] Ready event: Data sent for ${userId}: ${chats.length} chats, ${labels.length} labels`);
-            } catch (err) {
-                console.error(`[Socket] Ready event: Error loading data for ${userId}:`, err.message);
-            } finally {
-                setTimeout(() => {
-                    this.refreshLocks.delete(userId);
-                }, 3000);
-            }
+            console.log(`[Socket] Client ready for ${userId}`);
         });
 
-        whatsappService.on('authenticated', ({ userId }) => {
-            this.updateUserState(userId, { state: 'AUTHENTICATED', qr: null });
-            this.io.to(`user:${userId}`).emit('authenticated', { userId });
+        // Connecting event
+        whatsappBaileysService.on('connecting', ({ userId }) => {
+            this.updateUserState(userId, { state: 'CONNECTING', qr: null });
+            this.io.to(`user:${userId}`).emit('connecting', { userId });
         });
 
-        whatsappService.on('disconnected', ({ userId }) => {
+        // Logged out event
+        whatsappBaileysService.on('logged_out', ({ userId }) => {
             this.updateUserState(userId, { state: 'DISCONNECTED', qr: null });
             this.io.to(`user:${userId}`).emit('disconnected', { userId });
         });
 
-        // Forward labels update specifically
-        whatsappService.on('labels_update', async ({ userId }) => {
-            const labels = await whatsappService.getFormattedLabels(userId);
-            this.io.to(`user:${userId}`).emit('labels-update', labels);
+        // Message received event
+        whatsappBaileysService.on('message', ({ userId, from, contact, body, timestamp }) => {
+            this.io.to(`user:${userId}`).emit('message', {
+                from,
+                contact,
+                body,
+                timestamp
+            });
         });
     }
 }
