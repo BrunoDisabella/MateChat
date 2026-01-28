@@ -182,7 +182,9 @@ class WhatsAppBaileysService {
                     };
 
                     // Determinar el tipo de evento
-                    const eventType = fromMe ? 'message_sent' : 'message';
+                    // 'message' = mensajes recibidos (Recibidos)
+                    // 'message_create' = mensajes enviados (Enviados)
+                    const eventType = fromMe ? 'message_create' : 'message';
 
                     console.log(`[Baileys] ${fromMe ? '📤' : '📨'} Message ${fromMe ? 'sent to' : 'from'} ${contact.name}: ${text?.substring(0, 50)}...`);
 
