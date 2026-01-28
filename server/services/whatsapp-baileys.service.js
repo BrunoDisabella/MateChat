@@ -202,13 +202,35 @@ class WhatsAppBaileysService {
                     });
 
                     // Enviar webhook si está configurado
+                    // Estructura compatible con whatsapp-web.js
+                    const extractPhoneNumber = (jid) => {
+                        if (!jid) return null;
+                        return jid.split('@')[0];
+                    };
+
+                    const senderPhone = extractPhoneNumber(from);
+                    const chatPhone = extractPhoneNumber(from);
+
                     await this.sendWebhook(userId, {
                         event: eventType,
                         from,
                         contact,
                         body: text || '',
                         timestamp: msg.messageTimestamp,
-                        fromMe
+                        fromMe,
+                        // Campos adicionales para compatibilidad con whatsapp-web.js
+                        id: msg.key.id,
+                        type: 'chat', // Baileys no tiene msg.type como whatsapp-web.js
+                        chatId: from,
+                        chatPhone: chatPhone,
+                        phone: fromMe ? chatPhone : senderPhone,
+                        senderPhone: fromMe ? senderPhone : chatPhone,
+                        recipientPhone: fromMe ? chatPhone : senderPhone,
+                        hasMedia: !!(msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.documentMessage),
+                        isGroup,
+                        author: msg.key.participant || from,
+                        pushname: contact.name,
+                        labels: [] // TODO: Implementar labels en Baileys
                     });
 
                 } catch (error) {
@@ -379,10 +401,36 @@ class WhatsAppBaileysService {
 
             console.log(`[Baileys] 🔍 Checking ${settings.webhooks.length} webhooks for event: ${data.event}`);
 
-            const webhookData = {
-                ...data,
-                userId,
-                timestamp: new Date().toISOString()
+            // Estructura compatible con whatsapp-web.js
+            const payload = {
+                event: data.event === 'message_create' ? 'message.sent' : 'message.received',
+                timestamp: new Date().toISOString(),
+                data: {
+                    id: data.id,
+                    body: data.body,
+                    from: data.from,
+                    to: data.from, // En Baileys no tenemos 'to' directo
+                    phone: data.phone,
+                    senderPhone: data.senderPhone,
+                    recipientPhone: data.recipientPhone,
+                    fromMe: data.fromMe,
+                    type: data.type,
+                    timestamp: data.timestamp,
+                    chatId: data.chatId,
+                    chatPhone: data.chatPhone,
+                    hasMedia: data.hasMedia,
+                    isGroup: data.isGroup,
+                    author: data.author,
+                    pushname: data.pushname,
+                    labels: data.labels || [],
+                    contact: {
+                        name: data.contact?.name || null,
+                        phone: data.chatPhone,
+                        number: data.chatPhone,
+                        hasLabels: false,
+                        labelsCount: 0
+                    }
+                }
             };
 
             // Enviar a todos los webhooks configurados
@@ -402,7 +450,7 @@ class WhatsAppBaileysService {
                 console.log(`[Baileys] ✅ Webhook matched! Sending to ${webhook.url}...`);
 
                 try {
-                    await axios.post(webhook.url, webhookData, {
+                    await axios.post(webhook.url, payload, {
                         headers: { 'Content-Type': 'application/json' },
                         timeout: 5000
                     });
