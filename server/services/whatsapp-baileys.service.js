@@ -371,8 +371,11 @@ class WhatsAppBaileysService {
             const settings = await settingsService.getUserSettings(userId);
 
             if (!settings?.webhooks || settings.webhooks.length === 0) {
+                console.log(`[Baileys] No webhooks configured for ${userId}`);
                 return; // No hay webhooks configurados
             }
+
+            console.log(`[Baileys] 🔍 Checking ${settings.webhooks.length} webhooks for event: ${data.event}`);
 
             const webhookData = {
                 ...data,
@@ -382,8 +385,16 @@ class WhatsAppBaileysService {
 
             // Enviar a todos los webhooks configurados
             for (const webhook of settings.webhooks) {
-                if (!webhook.url || !webhook.events?.includes(data.event)) {
-                    continue; // Skip si no tiene URL o no está suscrito a este evento
+                console.log(`[Baileys] 🔍 Webhook: ${webhook.url}, Events: ${JSON.stringify(webhook.events)}`);
+
+                if (!webhook.url) {
+                    console.log(`[Baileys] ⚠️ Skipping webhook - no URL`);
+                    continue;
+                }
+
+                if (!webhook.events?.includes(data.event)) {
+                    console.log(`[Baileys] ⚠️ Skipping webhook - event ${data.event} not in ${JSON.stringify(webhook.events)}`);
+                    continue;
                 }
 
                 try {
