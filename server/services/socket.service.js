@@ -55,8 +55,15 @@ class SocketService {
                 console.error(`Error initializing WA client for ${userId}:`, e);
             }
 
-            // Enviar estado actual
-            this.sendState(socket, userId);
+            // Si tenemos un QR almacenado, reenviarlo al nuevo socket
+            const userState = this.userStates.get(userId);
+            if (userState && userState.qr && userState.state !== 'READY') {
+                console.log(`[Socket] Resending stored QR to new socket for ${userId}`);
+                socket.emit('qr', { qr: userState.qr });
+            } else if (whatsappBaileysService.isClientReady(userId)) {
+                // Si el cliente ya está listo, notificar
+                socket.emit('ready', { userId });
+            }
 
             socket.on('client-ready', () => {
                 console.log(`Client UI ready signal received for ${userId}`);
