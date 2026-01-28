@@ -190,8 +190,10 @@ class SocketService {
     setupWhatsappListeners() {
         // QR Code event
         whatsappBaileysService.on('qr', ({ qr, userId }) => {
+            console.log(`[Socket] QR event received for ${userId}, emitting to room user:${userId}`);
             this.updateUserState(userId, { state: 'QR_SENT', qr });
             this.io.to(`user:${userId}`).emit('qr', { qr });
+            console.log(`[Socket] QR emitted successfully`);
         });
 
         // Ready event (connection established)
