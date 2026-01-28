@@ -2,8 +2,7 @@ import makeWASocket, {
     DisconnectReason,
     useMultiFileAuthState,
     fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore,
-    makeInMemoryStore
+    makeCacheableSignalKeyStore
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode';
@@ -27,7 +26,6 @@ const logger = pino({ level: 'silent' }); // Cambiar a 'debug' para ver logs
 class WhatsAppBaileysService {
     constructor() {
         this.sockets = new Map(); // userId -> socket
-        this.stores = new Map(); // userId -> store (para mensajes)
         this.eventHandlers = new Map();
         this.qrRetries = new Map();
         this.maxQRRetries = 5;
@@ -59,10 +57,6 @@ class WhatsAppBaileysService {
             const { version, isLatest } = await fetchLatestBaileysVersion();
             console.log(`[Baileys] Using WA version ${version.join('.')}, isLatest: ${isLatest}`);
 
-            // Crear store para mensajes (opcional pero útil)
-            const store = makeInMemoryStore({ logger });
-            this.stores.set(userId, store);
-
             // Crear socket de WhatsApp
             const sock = makeWASocket({
                 version,
@@ -75,20 +69,8 @@ class WhatsAppBaileysService {
                 browser: ['MateChat', 'Chrome', '10.0'],
                 markOnlineOnConnect: true,
                 generateHighQualityLinkPreview: true,
-                syncFullHistory: false,
-                getMessage: async (key) => {
-                    // Recuperar mensaje del store si existe
-                    const store = this.stores.get(userId);
-                    if (store) {
-                        const msg = await store.loadMessage(key.remoteJid, key.id);
-                        return msg?.message || undefined;
-                    }
-                    return undefined;
-                }
+                syncFullHistory: false
             });
-
-            // Vincular store al socket
-            store.bind(sock.ev);
 
             // Guardar socket
             this.sockets.set(userId, sock);
@@ -145,7 +127,6 @@ class WhatsAppBaileysService {
                 if (shouldReconnect) {
                     // Limpiar socket actual
                     this.sockets.delete(userId);
-                    this.stores.delete(userId);
 
                     // Reintentar conexión después de 3 segundos
                     setTimeout(() => {
@@ -348,9 +329,8 @@ class WhatsAppBaileysService {
      * Limpiar sesión completamente
      */
     cleanupSession(userId) {
-        // Eliminar socket y store
+        // Eliminar socket
         this.sockets.delete(userId);
-        this.stores.delete(userId);
         this.qrRetries.delete(userId);
 
         // Eliminar archivos de autenticación
