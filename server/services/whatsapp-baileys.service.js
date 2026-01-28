@@ -399,6 +399,8 @@ class WhatsAppBaileysService {
                     continue;
                 }
 
+                console.log(`[Baileys] ✅ Webhook matched! Sending to ${webhook.url}...`);
+
                 try {
                     await axios.post(webhook.url, webhookData, {
                         headers: { 'Content-Type': 'application/json' },
@@ -407,7 +409,7 @@ class WhatsAppBaileysService {
 
                     console.log(`[Baileys] 🪝 Webhook sent to ${webhook.url} for ${userId}`);
                 } catch (error) {
-                    console.error(`[Baileys] Error sending webhook to ${webhook.url}:`, error.message);
+                    console.error(`[Baileys] ❌ Error sending webhook to ${webhook.url}:`, error.message);
                 }
             }
 
