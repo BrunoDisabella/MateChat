@@ -38,14 +38,8 @@ export const sendMessage = async (req, res) => {
             const audioBuffer = Buffer.from(audioBase64, 'base64');
             const opusBuffer = await convertToOpus(audioBuffer, audioMime);
 
-            // Enviar como nota de voz
-            result = await whatsappBaileysService.sendFile(
-                userId,
-                jid,
-                opusBuffer,
-                'voice.ogg',
-                'audio/ogg; codecs=opus'
-            );
+            // Enviar como nota de voz (PTT)
+            result = await whatsappBaileysService.sendAudio(userId, jid, opusBuffer);
 
             return res.json({
                 success: true,

@@ -349,6 +349,29 @@ class WhatsAppBaileysService {
     }
 
     /**
+     * Enviar audio como nota de voz (PTT)
+     */
+    async sendAudio(userId, to, audioBuffer) {
+        const sock = this.sockets.get(userId);
+        if (!sock) throw new Error(`Client not initialized for ${userId}`);
+
+        const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+
+        try {
+            const result = await sock.sendMessage(jid, {
+                audio: audioBuffer,
+                mimetype: 'audio/ogg; codecs=opus',
+                ptt: true // Push-to-Talk (nota de voz)
+            });
+            console.log(`[Baileys] 🎤 Voice note sent to ${to}`);
+            return result;
+        } catch (error) {
+            console.error(`[Baileys] Error sending audio:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * Logout y limpiar sesión
      */
     async logout(userId) {
