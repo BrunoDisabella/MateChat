@@ -97,11 +97,11 @@ class WhatsAppBaileysService {
             // QR Code generado
             if (qr) {
                 try {
-                    const qrImage = await qrcode.toDataURL(qr);
                     console.log(`[Baileys] 📱 QR generated for ${userId}`);
 
-                    // Emitir QR al frontend
-                    this.emit('qr', { userId, qr: qrImage });
+                    // Enviar QR string directamente al frontend
+                    // El frontend lo renderizará con su propia librería
+                    this.emit('qr', { userId, qr });
 
                     // Incrementar contador de reintentos
                     const retries = (this.qrRetries.get(userId) || 0) + 1;
