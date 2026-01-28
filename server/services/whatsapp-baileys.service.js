@@ -365,10 +365,10 @@ class WhatsAppBaileysService {
      */
     async sendWebhook(userId, data) {
         try {
-            const settings = await settingsService.getSettings(userId);
+            const settings = await settingsService.getUserSettings(userId);
 
-            if (!settings?.webhook_url) {
-                return; // No hay webhook configurado
+            if (!settings?.webhooks || settings.webhooks.length === 0) {
+                return; // No hay webhooks configurados
             }
 
             const webhookData = {
@@ -377,15 +377,26 @@ class WhatsAppBaileysService {
                 timestamp: new Date().toISOString()
             };
 
-            await axios.post(settings.webhook_url, webhookData, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 5000
-            });
+            // Enviar a todos los webhooks configurados
+            for (const webhook of settings.webhooks) {
+                if (!webhook.url || !webhook.events?.includes(data.event)) {
+                    continue; // Skip si no tiene URL o no está suscrito a este evento
+                }
 
-            console.log(`[Baileys] 🪝 Webhook sent for ${userId}`);
+                try {
+                    await axios.post(webhook.url, webhookData, {
+                        headers: { 'Content-Type': 'application/json' },
+                        timeout: 5000
+                    });
+
+                    console.log(`[Baileys] 🪝 Webhook sent to ${webhook.url} for ${userId}`);
+                } catch (error) {
+                    console.error(`[Baileys] Error sending webhook to ${webhook.url}:`, error.message);
+                }
+            }
 
         } catch (error) {
-            console.error(`[Baileys] Error sending webhook:`, error.message);
+            console.error(`[Baileys] Error in sendWebhook:`, error.message);
         }
     }
 
