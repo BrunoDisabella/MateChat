@@ -235,7 +235,7 @@ class WhatsAppService {
                     // FLAGS DE ESTABILIDAD:
                     '--disable-features=IsolateOrigins,site-per-process',
                     '--disable-site-isolation-trials',
-                    '--single-process',
+                    // '--single-process', // ELIMINADO: Causa deadlocks en carga
                     '--disable-background-timer-throttling',
                     '--disable-backgrounding-occluded-windows',
                     '--disable-renderer-backgrounding',
@@ -490,17 +490,17 @@ class WhatsAppService {
     startBootWatchdog(userId) {
         this.clearBootWatchdog(userId);
 
-        console.log(`[WA Service] ⏱️ Starting boot watchdog for ${userId} (120s timeout for READY state)`);
+        console.log(`[WA Service] ⏱️ Starting boot watchdog for ${userId} (45s timeout for READY state)`);
 
         const timeout = setTimeout(async () => {
             const state = this.clientStates.get(userId);
-            if (state !== 'READY') {
+            if (state !== 'READY' && state !== 'CONNECTED') { // También verificar CONNECTED por si acaso
                 console.error(`[WA Service] ⏰ Boot watchdog triggered for ${userId}. Stuck in ${state}. Force restarting...`);
                 await this.forceCleanupSession(userId);
                 console.log(`[WA Service] 🔄 Watchdog restarting init for ${userId}...`);
                 this.initializeClient(userId);
             }
-        }, 120000); // 2 minutos máximo para cargar
+        }, 45000); // Reducido a 45 segundos para reacción rápida
 
         this.bootWatchdogs.set(userId, timeout);
     }
