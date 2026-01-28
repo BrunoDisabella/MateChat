@@ -1,32 +1,22 @@
-import { whatsappService } from '../services/whatsapp.service.js';
+import { whatsappBaileysService } from '../services/whatsapp-baileys.service.js';
 
-export const triggerTestWebhook = async (req, res) => {
-    try {
-        const testMsg = {
-            id: { _serialized: 'TEST_MSG_ID_' + Date.now() },
-            body: 'This is a test message from /api/debug/test-webhook',
-            from: '1234567890@c.us',
-            to: '0987654321@c.us',
-            fromMe: true,
-            type: 'chat',
-            timestamp: Math.floor(Date.now() / 1000),
-            hasMedia: false,
-            getChat: async () => ({
-                id: { _serialized: '0987654321@c.us' },
-                isGroup: false,
-                getLabels: async () => []
-            }),
-            getContact: async () => ({
-                pushname: 'TestUser'
-            })
-        };
+// TODO: Este controller necesita refactoring completo para Baileys
+// Por ahora devolvemos error 501 Not Implemented
 
-        // Simulate 'message_create' event (sent message)
-        await whatsappService.handleWebhook(testMsg, 'message_create');
+export const testConnection = async (req, res) => {
+    const userId = req.userId || 'default-user';
+    const isReady = whatsappBaileysService.isClientReady(userId);
 
-        res.json({ success: true, message: 'Test webhook triggered', target: testMsg });
-    } catch (error) {
-        console.error('Test webhook failed:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
+    res.json({
+        connected: isReady,
+        userId,
+        service: 'Baileys WebSocket',
+        message: isReady ? 'WhatsApp client is connected' : 'WhatsApp client is not connected'
+    });
+};
+
+export const getQR = async (req, res) => {
+    return res.status(501).json({
+        error: 'getQR API temporarily disabled - use frontend UI for QR scanning'
+    });
 };

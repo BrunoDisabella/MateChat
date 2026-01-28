@@ -7,7 +7,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config/index.js';
-import { whatsappService } from './whatsapp.service.js';
+import { whatsappBaileysService } from './whatsapp-baileys.service.js';
 
 class SchedulerService {
     constructor() {
@@ -102,10 +102,10 @@ class SchedulerService {
         const { id, chat_id, body, media_url, media_type, user_id } = scheduledMsg;
 
         try {
-            // Obtener el cliente de WhatsApp (usar default-user si no hay user_id específico)
-            const client = whatsappService.getClient(user_id || 'default-user');
+            // Verificar si el cliente está listo
+            const isReady = whatsappBaileysService.isClientReady(user_id || 'default-user');
 
-            if (!client) {
+            if (!isReady) {
                 await this.markAsFailed(id, 'WhatsApp client not connected');
                 return;
             }
@@ -118,15 +118,8 @@ class SchedulerService {
 
             console.log(`[Scheduler] Sending message to ${targetChatId}: "${body?.substring(0, 30)}..."`);
 
-            // Enviar mensaje (con o sin media)
-            if (media_url && media_type) {
-                // Mensaje con media (implementar según necesidad)
-                // const media = await MessageMedia.fromUrl(media_url);
-                // await client.sendMessage(targetChatId, media, { caption: body });
-                await client.sendMessage(targetChatId, body || '');
-            } else {
-                await client.sendMessage(targetChatId, body);
-            }
+            // Enviar mensaje usando Baileys
+            await whatsappBaileysService.sendMessage(user_id || 'default-user', targetChatId, body || '');
 
             // Marcar como enviado
             await this.markAsSent(id);
@@ -173,23 +166,19 @@ class SchedulerService {
         const { id, content, media_url, media_type, user_id } = scheduledStatus;
 
         try {
-            const client = whatsappService.getClient(user_id || 'default-user');
+            const isReady = whatsappBaileysService.isClientReady(user_id || 'default-user');
 
-            if (!client) {
+            if (!isReady) {
                 await this.markStatusAsFailed(id, 'WhatsApp client not connected');
                 return;
             }
 
             console.log(`[Scheduler] Posting status: "${content?.substring(0, 30)}..."`);
 
-            // Publicar estado de texto
-            if (content && !media_url) {
-                await client.setStatus(content);
-            }
-            // TODO: Implementar estados con media cuando whatsapp-web.js lo soporte bien
-
-            await this.markStatusAsSent(id);
-            console.log(`[Scheduler] ✅ Status ${id} posted successfully`);
+            // TODO: Baileys no tiene setStatus() - necesita implementación
+            // Por ahora marcamos como fallido
+            await this.markStatusAsFailed(id, 'Status posting not yet implemented in Baileys');
+            console.log(`[Scheduler] ⚠️ Status ${id} - feature not implemented`);
 
         } catch (error) {
             console.error(`[Scheduler] ❌ Failed to post status ${id}:`, error);
