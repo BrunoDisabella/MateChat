@@ -11,15 +11,15 @@ const router = express.Router();
 
 router.use(authenticateApiKeyOnly);
 
-// Status & Health (NUEVO)
-router.get('/status', statusController.getStatus);
-router.get('/health', statusController.healthCheck);
-router.post('/restart', statusController.forceRestart);
-router.post('/force-cleanup', statusController.forceCleanup);
-router.post('/kill-zombies', statusController.killZombies);
+// Status & Health (TEMPORALMENTE DESHABILITADO - Baileys migration)
+// router.get('/status', statusController.getStatus);
+// router.get('/health', statusController.healthCheck);
+// router.post('/restart', statusController.forceRestart);
+// router.post('/force-cleanup', statusController.forceCleanup);
+// router.post('/kill-zombies', statusController.killZombies);
 
-// Debug
-router.post('/debug/test-webhook', testController.triggerTestWebhook);
+// Debug (TEMPORALMENTE DESHABILITADO - Baileys migration)
+// router.post('/debug/test-webhook', testController.triggerTestWebhook);
 
 // Labels
 router.get('/labels', labelsController.getLabels);
