@@ -230,27 +230,20 @@ class WhatsAppService {
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
                     '--disable-gpu',
-                    '--disable-software-rasterizer',
-                    // FLAGS DE ESTABILIDAD:
-                    '--disable-features=IsolateOrigins,site-per-process',
-                    '--disable-site-isolation-trials',
-                    // '--single-process', // ELIMINADO: Causa deadlocks en carga
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding',
-                    // Evitar throttling de CPU en background
-                    '--disable-hang-monitor',
-                    '--disable-ipc-flooding-protection',
-                    // Más memoria para operaciones largas
-                    '--js-flags=--max-old-space-size=512'
                 ]
             },
-            // Fix para versiones recientes de WhatsApp Web
-            // webVersionCache: {
-            //     type: 'remote',
-            //     remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
-            // }
+            authTimeoutMs: 60000,
+            qrMaxRetries: 10,
+            takeoverOnConflict: true,
+            // Fix para versiones recientes de WhatsApp Web (Critical for stopping the AUTHENTICATED loop)
+            webVersionCache: {
+                type: 'remote',
+                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+            }
         });
 
         this.setupClientListeners(client, userId);
