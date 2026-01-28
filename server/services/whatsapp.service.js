@@ -1,11 +1,16 @@
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import axios from 'axios';
 import { config } from '../config/index.js';
 import { settingsService } from './settings.service.js';
 import fs from 'fs';
 import path from 'path';
 import { exec, execSync } from 'child_process';
+
+// Activar plugin stealth para evadir detección de WhatsApp
+puppeteer.use(StealthPlugin());
 
 /**
  * WhatsApp Service - Versión mejorada con Keep-Alive y Health Check robusto
@@ -225,21 +230,25 @@ class WhatsAppService {
                 dataPath: path.resolve(process.cwd(), '.wwebjs_auth_v2')
             }),
             puppeteer: {
-                headless: true,
+                headless: false, // CRÍTICO: Modo visible para evitar detección
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
+                    '--disable-blink-features=AutomationControlled', // Ocultar automation
                     '--disable-dev-shm-usage',
                     '--disable-accelerated-2d-canvas',
                     '--no-first-run',
                     '--no-zygote',
                     '--disable-gpu',
-                ]
+                    '--window-size=1920,1080',
+                    '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+                ],
+                ignoreDefaultArgs: ['--enable-automation'], // Remover flag de automation
             },
-            authTimeoutMs: 60000,
+            authTimeoutMs: 120000, // Aumentar timeout a 2 minutos
             qrMaxRetries: 10,
             takeoverOnConflict: true,
-            // Fix para versiones recientes de WhatsApp Web (Critical for stopping the AUTHENTICATED loop)
+            // Fix: Usar versión específica de WhatsApp Web para evitar conflictos recientes
             webVersionCache: {
                 type: 'remote',
                 remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
