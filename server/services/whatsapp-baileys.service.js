@@ -158,7 +158,7 @@ class WhatsAppBaileysService {
         // === CREDENCIALES ===
         sock.ev.on('creds.update', saveCreds);
 
-        // === MENSAJES ENTRANTES ===
+        // === MENSAJES ENTRANTES Y SALIENTES ===
         sock.ev.on('messages.upsert', async ({ messages, type }) => {
             if (type !== 'notify') return;
 
@@ -167,11 +167,9 @@ class WhatsAppBaileysService {
                     // Ignorar mensajes sin contenido
                     if (!msg.message) continue;
 
-                    // Ignorar mensajes propios (enviados por el bot)
-                    if (msg.key.fromMe) continue;
-
                     const from = msg.key.remoteJid;
                     const isGroup = from.endsWith('@g.us');
+                    const fromMe = msg.key.fromMe;
 
                     // Extraer texto del mensaje
                     const text = this.extractMessageText(msg.message);
@@ -183,10 +181,13 @@ class WhatsAppBaileysService {
                         isGroup
                     };
 
-                    console.log(`[Baileys] 📨 Message from ${contact.name}: ${text?.substring(0, 50)}...`);
+                    // Determinar el tipo de evento
+                    const eventType = fromMe ? 'message_sent' : 'message';
+
+                    console.log(`[Baileys] ${fromMe ? '📤' : '📨'} Message ${fromMe ? 'sent to' : 'from'} ${contact.name}: ${text?.substring(0, 50)}...`);
 
                     // Emitir evento de mensaje
-                    this.emit('message', {
+                    this.emit(eventType, {
                         userId,
                         from,
                         contact,
@@ -194,16 +195,18 @@ class WhatsAppBaileysService {
                         timestamp: msg.messageTimestamp,
                         messageId: msg.key.id,
                         isGroup,
+                        fromMe,
                         raw: msg
                     });
 
                     // Enviar webhook si está configurado
                     await this.sendWebhook(userId, {
-                        event: 'message',
+                        event: eventType,
                         from,
                         contact,
                         body: text || '',
-                        timestamp: msg.messageTimestamp
+                        timestamp: msg.messageTimestamp,
+                        fromMe
                     });
 
                 } catch (error) {
