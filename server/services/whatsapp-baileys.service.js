@@ -208,12 +208,29 @@ class WhatsAppBaileysService {
                         return jid.split('@')[0];
                     };
 
+                    // Normalizar JID a formato whatsapp-web.js (@c.us)
+                    const normalizeJid = (jid) => {
+                        if (!jid) return null;
+                        const phone = extractPhoneNumber(jid);
+
+                        // Si es grupo, mantener @g.us
+                        if (jid.includes('@g.us')) {
+                            return jid;
+                        }
+
+                        // Para chats individuales, convertir a @c.us
+                        // Baileys usa @s.whatsapp.net o @lid, pero whatsapp-web.js usa @c.us
+                        return `${phone}@c.us`;
+                    };
+
                     const senderPhone = extractPhoneNumber(from);
                     const chatPhone = extractPhoneNumber(from);
+                    const normalizedChatId = normalizeJid(from);
+                    const normalizedFrom = normalizeJid(from);
 
                     await this.sendWebhook(userId, {
                         event: eventType,
-                        from,
+                        from: normalizedFrom,
                         contact,
                         body: text || '',
                         timestamp: msg.messageTimestamp,
@@ -221,14 +238,14 @@ class WhatsAppBaileysService {
                         // Campos adicionales para compatibilidad con whatsapp-web.js
                         id: msg.key.id,
                         type: 'chat', // Baileys no tiene msg.type como whatsapp-web.js
-                        chatId: from,
+                        chatId: normalizedChatId,
                         chatPhone: chatPhone,
                         phone: fromMe ? chatPhone : senderPhone,
                         senderPhone: fromMe ? senderPhone : chatPhone,
                         recipientPhone: fromMe ? chatPhone : senderPhone,
                         hasMedia: !!(msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.documentMessage),
                         isGroup,
-                        author: msg.key.participant || from,
+                        author: msg.key.participant || normalizedFrom,
                         pushname: contact.name,
                         labels: [] // TODO: Implementar labels en Baileys
                     });
