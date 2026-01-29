@@ -370,225 +370,225 @@ class WhatsAppBaileysService {
             throw error;
         }
     }
-}
 
     /**
      * Marcar chat como leído
      */
     async markChatAsRead(userId, jid) {
-    const sock = this.sockets.get(userId);
-    if (!sock) return; // Silent fail if no socket
+        const sock = this.sockets.get(userId);
+        if (!sock) return; // Silent fail if no socket
 
-    try {
-        const formattedJid = jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
+        try {
+            const formattedJid = jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
 
-        // En Baileys, readMessages toma un array de keys. 
-        // Para marcar todo el chat como leído, necesitamos pasar el último mensaje o un rango.
-        // Pero chatModify con lable: false también funciona para marcar como leído visualmente.
-        // La forma oficial para marcar READ receipts es sock.readMessages([keys]).
-        // PERO, para "quitar el punto verde" del chat list, podemos usar:
+            // En Baileys, readMessages toma un array de keys. 
+            // Para marcar todo el chat como leído, necesitamos pasar el último mensaje o un rango.
+            // Pero chatModify con lable: false también funciona para marcar como leído visualmente.
+            // La forma oficial para marcar READ receipts es sock.readMessages([keys]).
+            // PERO, para "quitar el punto verde" del chat list, podemos usar:
 
-        // Opción 1: Enviar presencia 'available' y 'read'
-        await sock.sendPresenceUpdate('available', formattedJid);
-        // await sock.sendPresenceUpdate('paused', formattedJid);
+            // Opción 1: Enviar presencia 'available' y 'read'
+            await sock.sendPresenceUpdate('available', formattedJid);
+            // await sock.sendPresenceUpdate('paused', formattedJid);
 
-        // Opción 2: Usar chatModify para marcar como leído
-        // Esto es lo que quita el punto verde (unread count)
-        await sock.chatModify(
-            { markRead: true, lastMessages: [] },
-            formattedJid
-        );
+            // Opción 2: Usar chatModify para marcar como leído
+            // Esto es lo que quita el punto verde (unread count)
+            await sock.chatModify(
+                { markRead: true, lastMessages: [] },
+                formattedJid
+            );
 
-        console.log(`[Baileys] 👀 Chat marked as read: ${formattedJid}`);
-    } catch (error) {
-        console.warn(`[Baileys] Failed to mark chat as read:`, error.message);
+            console.log(`[Baileys] 👀 Chat marked as read: ${formattedJid}`);
+        } catch (error) {
+            console.warn(`[Baileys] Failed to mark chat as read:`, error.message);
+        }
     }
-}
+
 
     /**
      * Logout y limpiar sesión
      */
     async logout(userId) {
-    try {
-        const sock = this.sockets.get(userId);
+        try {
+            const sock = this.sockets.get(userId);
 
-        if (sock) {
-            await sock.logout();
+            if (sock) {
+                await sock.logout();
+            }
+
+            this.cleanupSession(userId);
+            console.log(`[Baileys] 🚪 Logged out ${userId}`);
+
+        } catch (error) {
+            console.error(`[Baileys] Error during logout:`, error);
+            // Limpiar de todas formas
+            this.cleanupSession(userId);
         }
-
-        this.cleanupSession(userId);
-        console.log(`[Baileys] 🚪 Logged out ${userId}`);
-
-    } catch (error) {
-        console.error(`[Baileys] Error during logout:`, error);
-        // Limpiar de todas formas
-        this.cleanupSession(userId);
     }
-}
 
-/**
- * Limpiar sesión completamente
- */
-cleanupSession(userId) {
-    // Eliminar socket
-    this.sockets.delete(userId);
-    this.qrRetries.delete(userId);
+    /**
+     * Limpiar sesión completamente
+     */
+    cleanupSession(userId) {
+        // Eliminar socket
+        this.sockets.delete(userId);
+        this.qrRetries.delete(userId);
 
-    // Eliminar archivos de autenticación
-    const authPath = path.resolve(process.cwd(), `.baileys_auth/${userId}`);
-    if (fs.existsSync(authPath)) {
-        fs.rmSync(authPath, { recursive: true, force: true });
-        console.log(`[Baileys] 🗑️ Session files removed for ${userId}`);
+        // Eliminar archivos de autenticación
+        const authPath = path.resolve(process.cwd(), `.baileys_auth/${userId}`);
+        if (fs.existsSync(authPath)) {
+            fs.rmSync(authPath, { recursive: true, force: true });
+            console.log(`[Baileys] 🗑️ Session files removed for ${userId}`);
+        }
     }
-}
 
-/**
- * Obtener estado del cliente
- */
-getClientState(userId) {
-    const sock = this.sockets.get(userId);
-    if (!sock) return 'DISCONNECTED';
+    /**
+     * Obtener estado del cliente
+     */
+    getClientState(userId) {
+        const sock = this.sockets.get(userId);
+        if (!sock) return 'DISCONNECTED';
 
-    // Baileys no tiene un estado explícito, inferimos del socket
-    return sock.user ? 'READY' : 'CONNECTING';
-}
+        // Baileys no tiene un estado explícito, inferimos del socket
+        return sock.user ? 'READY' : 'CONNECTING';
+    }
 
-/**
- * Verificar si el cliente está listo
- */
-isClientReady(userId) {
-    const sock = this.sockets.get(userId);
-    return sock && sock.user ? true : false;
-}
+    /**
+     * Verificar si el cliente está listo
+     */
+    isClientReady(userId) {
+        const sock = this.sockets.get(userId);
+        return sock && sock.user ? true : false;
+    }
 
     /**
      * Enviar webhook
      */
     async sendWebhook(userId, data) {
-    try {
-        const settings = await settingsService.getUserSettings(userId);
+        try {
+            const settings = await settingsService.getUserSettings(userId);
 
-        if (!settings?.webhooks || settings.webhooks.length === 0) {
-            console.log(`[Baileys] No webhooks configured for ${userId}`);
-            return; // No hay webhooks configurados
-        }
+            if (!settings?.webhooks || settings.webhooks.length === 0) {
+                console.log(`[Baileys] No webhooks configured for ${userId}`);
+                return; // No hay webhooks configurados
+            }
 
-        console.log(`[Baileys] 🔍 Checking ${settings.webhooks.length} webhooks for event: ${data.event}`);
+            console.log(`[Baileys] 🔍 Checking ${settings.webhooks.length} webhooks for event: ${data.event}`);
 
-        // Estructura compatible con whatsapp-web.js
-        const payload = {
-            event: data.event === 'message_create' ? 'message.sent' : 'message.received',
-            timestamp: new Date().toISOString(),
-            data: {
-                id: data.id,
-                body: data.body,
-                from: data.from,
-                to: data.from, // En Baileys no tenemos 'to' directo
-                phone: data.phone,
-                senderPhone: data.senderPhone,
-                recipientPhone: data.recipientPhone,
-                fromMe: data.fromMe,
-                type: data.type,
-                timestamp: data.timestamp,
-                chatId: data.chatId,
-                chatPhone: data.chatPhone,
-                hasMedia: data.hasMedia,
-                isGroup: data.isGroup,
-                author: data.author,
-                pushname: data.pushname,
-                labels: data.labels || [],
-                contact: {
-                    name: data.contact?.name || null,
-                    phone: data.chatPhone,
-                    number: data.chatPhone,
-                    hasLabels: false,
-                    labelsCount: 0
+            // Estructura compatible con whatsapp-web.js
+            const payload = {
+                event: data.event === 'message_create' ? 'message.sent' : 'message.received',
+                timestamp: new Date().toISOString(),
+                data: {
+                    id: data.id,
+                    body: data.body,
+                    from: data.from,
+                    to: data.from, // En Baileys no tenemos 'to' directo
+                    phone: data.phone,
+                    senderPhone: data.senderPhone,
+                    recipientPhone: data.recipientPhone,
+                    fromMe: data.fromMe,
+                    type: data.type,
+                    timestamp: data.timestamp,
+                    chatId: data.chatId,
+                    chatPhone: data.chatPhone,
+                    hasMedia: data.hasMedia,
+                    isGroup: data.isGroup,
+                    author: data.author,
+                    pushname: data.pushname,
+                    labels: data.labels || [],
+                    contact: {
+                        name: data.contact?.name || null,
+                        phone: data.chatPhone,
+                        number: data.chatPhone,
+                        hasLabels: false,
+                        labelsCount: 0
+                    }
+                }
+            };
+
+            // Enviar a todos los webhooks configurados
+            for (const webhook of settings.webhooks) {
+                console.log(`[Baileys] 🔍 Webhook: ${webhook.url}, Events: ${JSON.stringify(webhook.events)}`);
+
+                if (!webhook.url) {
+                    console.log(`[Baileys] ⚠️ Skipping webhook - no URL`);
+                    continue;
+                }
+
+                if (!webhook.events?.includes(data.event)) {
+                    console.log(`[Baileys] ⚠️ Skipping webhook - event ${data.event} not in ${JSON.stringify(webhook.events)}`);
+                    continue;
+                }
+
+                console.log(`[Baileys] ✅ Webhook matched! Sending to ${webhook.url}...`);
+
+                try {
+                    await axios.post(webhook.url, payload, {
+                        headers: { 'Content-Type': 'application/json' },
+                        timeout: 5000
+                    });
+
+                    console.log(`[Baileys] 🪝 Webhook sent to ${webhook.url} for ${userId}`);
+                } catch (error) {
+                    console.error(`[Baileys] ❌ Error sending webhook to ${webhook.url}:`, error.message);
                 }
             }
-        };
 
-        // Enviar a todos los webhooks configurados
-        for (const webhook of settings.webhooks) {
-            console.log(`[Baileys] 🔍 Webhook: ${webhook.url}, Events: ${JSON.stringify(webhook.events)}`);
-
-            if (!webhook.url) {
-                console.log(`[Baileys] ⚠️ Skipping webhook - no URL`);
-                continue;
-            }
-
-            if (!webhook.events?.includes(data.event)) {
-                console.log(`[Baileys] ⚠️ Skipping webhook - event ${data.event} not in ${JSON.stringify(webhook.events)}`);
-                continue;
-            }
-
-            console.log(`[Baileys] ✅ Webhook matched! Sending to ${webhook.url}...`);
-
-            try {
-                await axios.post(webhook.url, payload, {
-                    headers: { 'Content-Type': 'application/json' },
-                    timeout: 5000
-                });
-
-                console.log(`[Baileys] 🪝 Webhook sent to ${webhook.url} for ${userId}`);
-            } catch (error) {
-                console.error(`[Baileys] ❌ Error sending webhook to ${webhook.url}:`, error.message);
-            }
-        }
-
-    } catch (error) {
-        console.error(`[Baileys] Error in sendWebhook:`, error.message);
-    }
-}
-
-/**
- * Sistema de eventos (para comunicación con socket.io)
- */
-on(event, handler) {
-    if (!this.eventHandlers.has(event)) {
-        this.eventHandlers.set(event, []);
-    }
-    this.eventHandlers.get(event).push(handler);
-}
-
-emit(event, data) {
-    const handlers = this.eventHandlers.get(event) || [];
-    handlers.forEach(handler => {
-        try {
-            handler(data);
         } catch (error) {
-            console.error(`[Baileys] Error in event handler for ${event}:`, error);
+            console.error(`[Baileys] Error in sendWebhook:`, error.message);
         }
-    });
-}
+    }
+
+    /**
+     * Sistema de eventos (para comunicación con socket.io)
+     */
+    on(event, handler) {
+        if (!this.eventHandlers.has(event)) {
+            this.eventHandlers.set(event, []);
+        }
+        this.eventHandlers.get(event).push(handler);
+    }
+
+    emit(event, data) {
+        const handlers = this.eventHandlers.get(event) || [];
+        handlers.forEach(handler => {
+            try {
+                handler(data);
+            } catch (error) {
+                console.error(`[Baileys] Error in event handler for ${event}:`, error);
+            }
+        });
+    }
 
     /**
      * Restaurar sesiones existentes al iniciar el servidor
      */
     async restoreExistingSessions() {
-    try {
-        const authDir = path.resolve(process.cwd(), '.baileys_auth');
+        try {
+            const authDir = path.resolve(process.cwd(), '.baileys_auth');
 
-        if (!fs.existsSync(authDir)) {
-            console.log('[Baileys] No existing sessions to restore');
-            return;
-        }
-
-        const userDirs = fs.readdirSync(authDir);
-        console.log(`[Baileys] 🔄 Found ${userDirs.length} sessions to restore`);
-
-        for (const userId of userDirs) {
-            try {
-                await this.initializeClient(userId);
-                console.log(`[Baileys] ✅ Restored session for ${userId}`);
-            } catch (error) {
-                console.error(`[Baileys] ❌ Failed to restore session for ${userId}:`, error.message);
+            if (!fs.existsSync(authDir)) {
+                console.log('[Baileys] No existing sessions to restore');
+                return;
             }
-        }
 
-    } catch (error) {
-        console.error('[Baileys] Error restoring sessions:', error);
+            const userDirs = fs.readdirSync(authDir);
+            console.log(`[Baileys] 🔄 Found ${userDirs.length} sessions to restore`);
+
+            for (const userId of userDirs) {
+                try {
+                    await this.initializeClient(userId);
+                    console.log(`[Baileys] ✅ Restored session for ${userId}`);
+                } catch (error) {
+                    console.error(`[Baileys] ❌ Failed to restore session for ${userId}:`, error.message);
+                }
+            }
+
+        } catch (error) {
+            console.error('[Baileys] Error restoring sessions:', error);
+        }
     }
-}
 }
 
 export const whatsappBaileysService = new WhatsAppBaileysService();
