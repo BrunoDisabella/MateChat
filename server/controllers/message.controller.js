@@ -59,6 +59,9 @@ export const sendMessage = async (req, res) => {
             // Enviar como nota de voz (PTT)
             result = await whatsappBaileysService.sendAudio(userId, jid, opusBuffer);
 
+            // Marcar como leído automáticamente
+            await whatsappBaileysService.markChatAsRead(userId, jid);
+
             return res.json({
                 success: true,
                 messageId: result.key.id,
@@ -78,6 +81,9 @@ export const sendMessage = async (req, res) => {
                 caption || ''
             );
 
+            // Marcar como leído automáticamente
+            await whatsappBaileysService.markChatAsRead(userId, jid);
+
             return res.json({
                 success: true,
                 messageId: result.key.id,
@@ -90,6 +96,9 @@ export const sendMessage = async (req, res) => {
             logApi(userId, 'send-message', { to: jid });
 
             result = await whatsappBaileysService.sendMessage(userId, jid, text);
+
+            // Marcar como leído automáticamente
+            await whatsappBaileysService.markChatAsRead(userId, jid);
 
             console.log('[API] Message sent successfully. ID:', result?.key?.id);
 
