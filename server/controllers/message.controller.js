@@ -16,18 +16,32 @@ export const sendMessage = async (req, res) => {
         const to = body.to || body.chatId;
 
         // Compatibilidad: aceptar objeto 'media' (n8n legacy structure)
-        let { text, audioBase64, audioMime, imageBase64, imageMime, caption } = body;
+        let { text, audioBase64, audioMime, imageBase64, imageMime, caption, ptt } = body;
+
+        // Log completo para depuración
+        logApi(userId, 'debug-payload', {
+            keys: Object.keys(body),
+            mediaKeys: body.media ? Object.keys(body.media) : null,
+            hasAudio: !!(body.audioBase64 || (body.media && body.media.mimetype?.startsWith('audio'))),
+            mimetype: body.audioMime || body.media?.mimetype
+        });
 
         if (body.media) {
             if (body.media.mimetype && body.media.mimetype.startsWith('audio')) {
                 audioBase64 = body.media.base64 || body.media.data;
                 audioMime = body.media.mimetype;
+                audioMime = body.media.mimetype;
+                // FORCE PTT: Siempre enviar como nota de voz
+                ptt = true;
             } else if (body.media.mimetype && body.media.mimetype.startsWith('image')) {
                 imageBase64 = body.media.base64 || body.media.data;
                 imageMime = body.media.mimetype;
                 caption = body.caption || body.media.caption || caption;
             }
         }
+
+        // FORCE PTT: Asegurar que siempre sea true incluso si no viene en media
+        ptt = true;
 
         if (!to) {
             return res.status(400).json({
@@ -38,26 +52,56 @@ export const sendMessage = async (req, res) => {
 
         // Normalizar número de teléfono a formato Baileys
         // Si viene en formato @c.us, convertir a @s.whatsapp.net
+        // Si parece un LID (15 dígitos aprox), convertir a @lid
         let jid = to;
         if (to.includes('@c.us')) {
             jid = to.replace('@c.us', '@s.whatsapp.net');
-        } else if (!to.includes('@')) {
-            jid = `${to}@s.whatsapp.net`;
+        } else if (to.includes('@lid') || to.includes('@s.whatsapp.net') || to.includes('@g.us')) {
+            jid = to; // Ya está correcto
+        } else {
+            // No tiene sufijo, determinar automáticamente
+            const potentialJid = `${to}@s.whatsapp.net`;
+
+            // Si es corto, seguro es teléfono
+            if (to.length < 15) {
+                jid = potentialJid;
+            } else {
+                // Si es largo, podría ser LID o teléfono
+                // Verificar si existe como teléfono
+                console.log(`[API] Verifying if ${to} is a valid phone number...`);
+                const onWa = await whatsappBaileysService.checkOnWhatsApp(userId, potentialJid);
+
+                if (onWa && onWa.exists) {
+                    jid = potentialJid;
+                    console.log(`[API] ✅ Resolved ${to} to phone number (verified): ${jid}`);
+                } else {
+                    jid = `${to}@lid`;
+                    logApi(userId, 'detect-lid-recipient', { to, jid });
+                    console.log(`[API] ⚠️ Resolved ${to} to LID (fallback): ${jid}`);
+                }
+            }
         }
 
         let result;
 
-        // Caso 1: Nota de voz (audio)
+        // Caso 1: Audio (Nota de voz ENFORCED)
         if (audioBase64 && audioMime) {
-            logApi(userId, 'send-voice-note', { to: jid });
+            logApi(userId, 'send-voice-note', { to: jid, forced_ptt: true });
 
-            // Convertir audio a formato Opus (requerido por WhatsApp)
-            // convertToOpus espera string base64, no Buffer
-            const opusBase64 = await convertToOpus(audioBase64);
-            const opusBuffer = Buffer.from(opusBase64, 'base64');
+            const audioBuffer = Buffer.from(audioBase64, 'base64');
 
-            // Enviar como nota de voz (PTT)
-            result = await whatsappBaileysService.sendAudio(userId, jid, opusBuffer);
+            // Siempre convertir a Opus para nota de voz
+            try {
+                const opusBase64 = await convertToOpus(audioBase64);
+                const opusBuffer = Buffer.from(opusBase64, 'base64');
+                result = await whatsappBaileysService.sendAudio(userId, jid, opusBuffer, true); // ptt=true
+            } catch (error) {
+                console.error('[API] FFmpeg conversion failed:', error);
+                return res.status(500).json({
+                    success: false,
+                    error: `Audio conversion failed: ${error.message}. Ensure ffmpeg is installed.`
+                });
+            }
 
             return res.json({
                 success: true,
@@ -68,7 +112,8 @@ export const sendMessage = async (req, res) => {
 
         // Caso 2: Imagen
         if (imageBase64 && imageMime) {
-            logApi(userId, 'send-image', { to: jid });
+            logApi(userId, 'send-image', { to: jid, size: imageBase64.length, mime: imageMime });
+            console.log(`[API] Sending Image to ${jid}. Size: ${imageBase64.length} chars. Mime: ${imageMime}`);
 
             const imageBuffer = Buffer.from(imageBase64, 'base64');
             result = await whatsappBaileysService.sendImage(

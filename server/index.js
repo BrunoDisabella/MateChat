@@ -110,17 +110,6 @@ process.on('SIGINT', async () => {
     // Stop scheduler
     schedulerService.stop();
 
-    // Logout all Baileys clients
-    const userIds = Array.from(whatsappBaileysService.sockets.keys());
-    for (const userId of userIds) {
-        console.log(`   Logging out client ${userId}...`);
-        try {
-            await whatsappBaileysService.logout(userId);
-        } catch (e) {
-            console.error(`   Failed to logout ${userId}:`, e.message);
-        }
-    }
-
     server.close(() => {
         console.log('✅ Server closed. Goodbye!');
         process.exit(0);

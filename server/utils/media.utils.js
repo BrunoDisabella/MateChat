@@ -1,8 +1,12 @@
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegPath from 'ffmpeg-static';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
+
+// Configure ffmpeg to use the static binary
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 /**
  * Converts audio data (base64) to WhatsApp-compatible OGG/Opus format.

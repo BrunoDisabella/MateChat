@@ -391,9 +391,9 @@ class WhatsAppBaileysService {
     }
 
     /**
-     * Enviar audio como nota de voz (PTT)
+     * Enviar audio como nota de voz (PTT) o archivo de audio
      */
-    async sendAudio(userId, to, audioBuffer) {
+    async sendAudio(userId, to, audioBuffer, ptt = true) {
         const sock = this.sockets.get(userId);
         if (!sock) throw new Error(`Client not initialized for ${userId}`);
 
@@ -402,8 +402,8 @@ class WhatsAppBaileysService {
         try {
             const result = await sock.sendMessage(jid, {
                 audio: audioBuffer,
-                mimetype: 'audio/ogg; codecs=opus',
-                ptt: true // Push-to-Talk (nota de voz)
+                mimetype: ptt ? 'audio/ogg; codecs=opus' : 'audio/mpeg',
+                ptt: ptt
             });
             console.log(`[Baileys] 🎤 Voice note sent to ${to}`);
             return result;
@@ -498,6 +498,26 @@ class WhatsAppBaileysService {
     isClientReady(userId) {
         const sock = this.sockets.get(userId);
         return sock && sock.user ? true : false;
+    }
+
+    /**
+     * Verificar si un número existe en WhatsApp
+     */
+    async checkOnWhatsApp(userId, jid) {
+        const sock = this.sockets.get(userId);
+        if (!sock) return null;
+
+        try {
+            // Verificar si existe como usuario normal (@s.whatsapp.net)
+            const result = await sock.onWhatsApp(jid);
+            if (result && result.length > 0) {
+                return result[0];
+            }
+            return null;
+        } catch (error) {
+            console.error(`[Baileys] Error checking checkOnWhatsApp for ${jid}:`, error);
+            return null;
+        }
     }
 
     /**
@@ -616,6 +636,10 @@ class WhatsAppBaileysService {
             console.log(`[Baileys] 🔄 Found ${userDirs.length} sessions to restore`);
 
             for (const userId of userDirs) {
+                // Verificar que sea un directorio antes de intentar restaurar
+                const userPath = path.join(authDir, userId);
+                if (!fs.lstatSync(userPath).isDirectory()) continue;
+
                 try {
                     await this.initializeClient(userId);
                     console.log(`[Baileys] ✅ Restored session for ${userId}`);
