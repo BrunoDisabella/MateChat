@@ -10,12 +10,29 @@ import { convertToOpus } from '../utils/media.utils.js';
 export const sendMessage = async (req, res) => {
     try {
         const userId = req.userId; // Set by auth middleware
-        const { to, text, audioBase64, audioMime, imageBase64, imageMime, caption } = req.body;
+        const body = req.body;
+
+        // Compatibilidad: aceptar 'chatId' como alias de 'to'
+        const to = body.to || body.chatId;
+
+        // Compatibilidad: aceptar objeto 'media' (n8n legacy structure)
+        let { text, audioBase64, audioMime, imageBase64, imageMime, caption } = body;
+
+        if (body.media) {
+            if (body.media.mimetype && body.media.mimetype.startsWith('audio')) {
+                audioBase64 = body.media.base64 || body.media.data;
+                audioMime = body.media.mimetype;
+            } else if (body.media.mimetype && body.media.mimetype.startsWith('image')) {
+                imageBase64 = body.media.base64 || body.media.data;
+                imageMime = body.media.mimetype;
+                caption = body.caption || body.media.caption || caption;
+            }
+        }
 
         if (!to) {
             return res.status(400).json({
                 success: false,
-                error: 'Missing required field: to'
+                error: 'Missing required field: to (or chatId)'
             });
         }
 
