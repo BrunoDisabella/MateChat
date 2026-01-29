@@ -2,8 +2,11 @@ import makeWASocket, {
     DisconnectReason,
     useMultiFileAuthState,
     fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore
+    makeCacheableSignalKeyStore,
+    makeInMemoryStore
 } from '@whiskeysockets/baileys';
+
+
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode';
 import fs from 'fs';
@@ -13,6 +16,19 @@ import { settingsService } from './settings.service.js';
 import pino from 'pino';
 
 const logger = pino({ level: 'silent' }); // Cambiar a 'debug' para ver logs
+
+// Community Solution: In-Memory Store for LID Resolution
+const store = makeInMemoryStore({ logger });
+try {
+    store.readFromFile('./baileys_store_multi.json');
+} catch (e) {
+    console.log('[Baileys] No store file found, creating new one.');
+}
+
+// Save store every 10s
+setInterval(() => {
+    store.writeToFile('./baileys_store_multi.json');
+}, 10_000);
 
 /**
  * WhatsApp Baileys Service - Conexión directa vía WebSocket
@@ -71,6 +87,9 @@ class WhatsAppBaileysService {
                 generateHighQualityLinkPreview: true,
                 syncFullHistory: false
             });
+
+            // Bind store to socket events (Crucial for LID mapping)
+            store.bind(sock.ev);
 
             // Guardar socket
             this.sockets.set(userId, sock);
@@ -246,8 +265,19 @@ class WhatsAppBaileysService {
                                 return phone;
                             }
 
-                            // 3. Fallback: Intentar obtener desde el objeto del socket si hay user info
-                            // (Esto es tentativo, depende de si Baileys cachea el usuario)
+                            // 3. Buscar en el STORE (Community Fix)
+                            try {
+                                const contact = store.contacts[targetJid];
+                                if (contact) {
+                                    if (contact.id && contact.id.includes('@s.whatsapp.net')) {
+                                        const phone = contact.id.split('@')[0];
+                                        console.log(`[Baileys] ✅ Resolved LID via Store: ${phone}`);
+                                        return phone;
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('[Baileys] Error querying store:', e);
+                            }
 
                             // Fallback final: devolver LID pero lo logueamos como warning
                             const lidNumber = targetJid.split('@')[0];
