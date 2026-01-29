@@ -373,35 +373,32 @@ class WhatsAppBaileysService {
 
     /**
      * Marcar chat como leído
+     * NOTA: Los mensajes salientes (fromMe: true) no generan notificaciones.
+     * Esta función está deshabilitada temporalmente porque requiere las keys
+     * específicas de los mensajes para funcionar correctamente en Baileys.
      */
     async markChatAsRead(userId, jid) {
+        // Temporalmente deshabilitado - los mensajes salientes no generan notificaciones de todas formas
+        console.log(`[Baileys] ℹ️ markChatAsRead called for ${jid} (currently disabled)`);
+        return;
+
+        /* 
         const sock = this.sockets.get(userId);
-        if (!sock) return; // Silent fail if no socket
+        if (!sock) return;
 
         try {
             const formattedJid = jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
-
-            // En Baileys, readMessages toma un array de keys. 
-            // Para marcar todo el chat como leído, necesitamos pasar el último mensaje o un rango.
-            // Pero chatModify con lable: false también funciona para marcar como leído visualmente.
-            // La forma oficial para marcar READ receipts es sock.readMessages([keys]).
-            // PERO, para "quitar el punto verde" del chat list, podemos usar:
-
-            // Opción 1: Enviar presencia 'available' y 'read'
-            await sock.sendPresenceUpdate('available', formattedJid);
-            // await sock.sendPresenceUpdate('paused', formattedJid);
-
-            // Opción 2: Usar chatModify para marcar como leído
-            // Esto es lo que quita el punto verde (unread count)
-            await sock.chatModify(
-                { markRead: true, lastMessages: [] },
-                formattedJid
-            );
-
+            
+            // Para implementar correctamente, necesitaríamos:
+            // 1. Obtener mensajes no leídos del chat
+            // 2. Extraer sus keys
+            // 3. Llamar a sock.readMessages(keys)
+            
             console.log(`[Baileys] 👀 Chat marked as read: ${formattedJid}`);
         } catch (error) {
             console.warn(`[Baileys] Failed to mark chat as read:`, error.message);
         }
+        */
     }
 
 
