@@ -52,8 +52,9 @@ export const sendMessage = async (req, res) => {
             logApi(userId, 'send-voice-note', { to: jid });
 
             // Convertir audio a formato Opus (requerido por WhatsApp)
-            const audioBuffer = Buffer.from(audioBase64, 'base64');
-            const opusBuffer = await convertToOpus(audioBuffer, audioMime);
+            // convertToOpus espera string base64, no Buffer
+            const opusBase64 = await convertToOpus(audioBase64);
+            const opusBuffer = Buffer.from(opusBase64, 'base64');
 
             // Enviar como nota de voz (PTT)
             result = await whatsappBaileysService.sendAudio(userId, jid, opusBuffer);
