@@ -211,6 +211,13 @@ class WhatsAppBaileysService {
                     const extractRealPhoneNumber = (msg) => {
                         const jid = msg.key.remoteJid;
 
+                        // Debug: Log complete msg object for LID messages
+                        if (jid?.includes('@lid')) {
+                            console.log(`[Baileys] 🕵️ LID Detected: ${jid}`);
+                            console.log(`[Baileys] 🕵️ Full Key:`, JSON.stringify(msg.key));
+                            if (msg.pushName) console.log(`[Baileys] 🕵️ PushName: ${msg.pushName}`);
+                        }
+
                         // Si es grupo, usar participant
                         const targetJid = jid?.endsWith('@g.us')
                             ? msg.key.participant
@@ -225,24 +232,26 @@ class WhatsAppBaileysService {
 
                         // Si es @lid, buscar en campos alternativos (Baileys 6.8.0+)
                         if (targetJid.includes('@lid')) {
-                            // Para DM: usar remoteJidAlt
+                            // 1. Intentar remoteJidAlt
                             if (msg.key.remoteJidAlt?.includes('@s.whatsapp.net')) {
-                                const phoneFromAlt = msg.key.remoteJidAlt.split('@')[0];
-                                console.log(`[Baileys] ✅ Resolved LID to phone via remoteJidAlt: ${phoneFromAlt}`);
-                                return phoneFromAlt;
+                                const phone = msg.key.remoteJidAlt.split('@')[0];
+                                console.log(`[Baileys] ✅ Resolved LID via remoteJidAlt: ${phone}`);
+                                return phone;
                             }
 
-                            // Para grupos: usar participantAlt
+                            // 2. Intentar participantAlt
                             if (msg.key.participantAlt?.includes('@s.whatsapp.net')) {
-                                const phoneFromAlt = msg.key.participantAlt.split('@')[0];
-                                console.log(`[Baileys] ✅ Resolved LID to phone via participantAlt: ${phoneFromAlt}`);
-                                return phoneFromAlt;
+                                const phone = msg.key.participantAlt.split('@')[0];
+                                console.log(`[Baileys] ✅ Resolved LID via participantAlt: ${phone}`);
+                                return phone;
                             }
 
-                            // Fallback: devolver LID (no ideal pero mejor que nada)
+                            // 3. Fallback: Intentar obtener desde el objeto del socket si hay user info
+                            // (Esto es tentativo, depende de si Baileys cachea el usuario)
+
+                            // Fallback final: devolver LID pero lo logueamos como warning
                             const lidNumber = targetJid.split('@')[0];
-                            console.warn(`[Baileys] ⚠️ Could not resolve LID to phone number. Using LID as fallback: ${lidNumber}`);
-                            console.warn(`[Baileys] ⚠️ Available fields - remoteJidAlt: ${msg.key.remoteJidAlt}, participantAlt: ${msg.key.participantAlt}`);
+                            console.warn(`[Baileys] ⚠️ Failed to resolve LID ${lidNumber} to Phone. Returning LID.`);
                             return lidNumber;
                         }
 
