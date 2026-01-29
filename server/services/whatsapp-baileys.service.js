@@ -1,10 +1,16 @@
-import makeWASocket, {
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const Baileys = require('@whiskeysockets/baileys');
+
+const {
+    default: makeWASocket,
     DisconnectReason,
     useMultiFileAuthState,
     fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore,
-    makeInMemoryStore
-} from '@whiskeysockets/baileys';
+    makeCacheableSignalKeyStore
+} = Baileys;
+
+import { makeInMemoryStore } from './baileys-store.js';
 
 
 import { Boom } from '@hapi/boom';
