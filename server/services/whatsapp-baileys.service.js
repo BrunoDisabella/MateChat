@@ -203,15 +203,61 @@ class WhatsAppBaileysService {
 
                     // Enviar webhook si está configurado
                     // Estructura compatible con whatsapp-web.js
-                    const extractPhoneNumber = (jid) => {
-                        if (!jid) return null;
-                        return jid.split('@')[0];
+
+                    /**
+                     * Extraer número real de teléfono desde JID o LID
+                     * Maneja tanto @s.whatsapp.net como @lid usando campos alternativos de Baileys
+                     */
+                    const extractRealPhoneNumber = (msg) => {
+                        const jid = msg.key.remoteJid;
+
+                        // Si es grupo, usar participant
+                        const targetJid = jid?.endsWith('@g.us')
+                            ? msg.key.participant
+                            : jid;
+
+                        if (!targetJid) return null;
+
+                        // Si es @s.whatsapp.net, extraer directamente
+                        if (targetJid.includes('@s.whatsapp.net')) {
+                            return targetJid.split('@')[0];
+                        }
+
+                        // Si es @lid, buscar en campos alternativos (Baileys 6.8.0+)
+                        if (targetJid.includes('@lid')) {
+                            // Para DM: usar remoteJidAlt
+                            if (msg.key.remoteJidAlt?.includes('@s.whatsapp.net')) {
+                                const phoneFromAlt = msg.key.remoteJidAlt.split('@')[0];
+                                console.log(`[Baileys] ✅ Resolved LID to phone via remoteJidAlt: ${phoneFromAlt}`);
+                                return phoneFromAlt;
+                            }
+
+                            // Para grupos: usar participantAlt
+                            if (msg.key.participantAlt?.includes('@s.whatsapp.net')) {
+                                const phoneFromAlt = msg.key.participantAlt.split('@')[0];
+                                console.log(`[Baileys] ✅ Resolved LID to phone via participantAlt: ${phoneFromAlt}`);
+                                return phoneFromAlt;
+                            }
+
+                            // Fallback: devolver LID (no ideal pero mejor que nada)
+                            const lidNumber = targetJid.split('@')[0];
+                            console.warn(`[Baileys] ⚠️ Could not resolve LID to phone number. Using LID as fallback: ${lidNumber}`);
+                            console.warn(`[Baileys] ⚠️ Available fields - remoteJidAlt: ${msg.key.remoteJidAlt}, participantAlt: ${msg.key.participantAlt}`);
+                            return lidNumber;
+                        }
+
+                        // Default: extraer lo que sea antes del @
+                        return targetJid.split('@')[0];
                     };
+
+                    const realPhoneNumber = extractRealPhoneNumber(msg);
+                    const senderPhone = fromMe ? msg.key.remoteJid?.split('@')[0] : realPhoneNumber;
+                    const recipientPhone = fromMe ? realPhoneNumber : msg.key.remoteJid?.split('@')[0];
 
                     // Normalizar JID a formato whatsapp-web.js (@c.us)
                     const normalizeJid = (jid) => {
                         if (!jid) return null;
-                        const phone = extractPhoneNumber(jid);
+                        const phone = jid.split('@')[0];
 
                         // Si es grupo, mantener @g.us
                         if (jid.includes('@g.us')) {
@@ -219,13 +265,9 @@ class WhatsAppBaileysService {
                         }
 
                         // Para chats individuales, convertir a @c.us
-                        // Baileys usa @s.whatsapp.net o @lid, pero whatsapp-web.js usa @c.us
                         return `${phone}@c.us`;
                     };
 
-                    const senderPhone = extractPhoneNumber(from);
-                    const chatPhone = extractPhoneNumber(from);
-                    const normalizedChatId = normalizeJid(from);
                     const normalizedFrom = normalizeJid(from);
 
                     await this.sendWebhook(userId, {
@@ -238,11 +280,11 @@ class WhatsAppBaileysService {
                         // Campos adicionales para compatibilidad con whatsapp-web.js
                         id: msg.key.id,
                         type: 'chat', // Baileys no tiene msg.type como whatsapp-web.js
-                        chatId: normalizedChatId,
-                        chatPhone: chatPhone,
-                        phone: fromMe ? chatPhone : senderPhone,
-                        senderPhone: fromMe ? senderPhone : chatPhone,
-                        recipientPhone: fromMe ? chatPhone : senderPhone,
+                        chatId: realPhoneNumber, // Número real extraído (puede ser LID si no se pudo resolver)
+                        chatPhone: realPhoneNumber, // Número real del chat
+                        phone: fromMe ? recipientPhone : senderPhone,
+                        senderPhone: senderPhone,
+                        recipientPhone: recipientPhone,
                         hasMedia: !!(msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.documentMessage),
                         isGroup,
                         author: msg.key.participant || normalizedFrom,
